@@ -1,0 +1,1788 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+ <title>闷骚乔巴</title>
+ <link href="http://kuang.io/atom.xml" rel="self"/>
+ <link href="http://kuang.io/"/>
+ <updated>2015-05-27T19:28:38+08:00</updated>
+ <id>http://kuang.io</id>
+ <author>
+   <name>chopperkuang</name>
+   <email></email>
+ </author>
+
+ 
+ <entry>
+   <title>tomcat-jdbc-pool 实现简单分析</title>
+   <link href="http://kuang.io/tomcat-jdbc-pool-simple-source"/>
+   <updated>2015-05-22T00:00:00+08:00</updated>
+   <id>http://kuang.io/tomcat-jdbc-pool-simple-source</id>
+   <content type="html">&lt;p&gt;在现稍微大一点的软件系统开发中，都会接触到池。有时，并不是没有用到，而是没有去注意到。例如：内存池，线程池，连接池等各种各样的池（pool）。&lt;/p&gt;
+
+&lt;h3 id=&quot;section&quot;&gt;先聊聊池&lt;/h3&gt;
+
+&lt;p&gt;池，不由自主的会想到水池。  &lt;br /&gt;
+小时候，我们都要去远处的水井挑水，倒进家中的水池里面。这样，每次要用水时，直接从水池中“取”就行了。不用大老远跑去水井打水。&lt;/p&gt;
+
+&lt;p&gt;数据库连接池就如此，我们预先准备好一些连接，放到池中。当需要时，就直接获取。而不要每次跟数据库建立一个新的连接。特别对数据库连接这类耗时，耗资源的操作。当连接用完后，再放回池中，供后续使用。&lt;/p&gt;
+
+&lt;p&gt;从上可以简单看些，池的一些基本特征：  &lt;br /&gt;
+。池会有一定的容量，及已经创建好的对象  &lt;br /&gt;
+。有“借”有“还”操作的接口&lt;/p&gt;
+
+&lt;p&gt;我先前有简单看过dbcp，c3po连接池的实现。相对于简单，精湛tomcat-jdbc-pool，还是复杂不少。&lt;br /&gt;
+tomcat-jdbc-pool基于jdk1.5后的线程池实现。所以你懂得。&lt;/p&gt;
+
+&lt;h3 id=&quot;section-1&quot;&gt;有借有还，再借不难&lt;/h3&gt;
+&lt;p&gt;俗话说：“有借有还，再借不难”。&lt;br /&gt;
+我们刨去各种初始化，各种花枝招展的包装以及一些简单逻辑的卫语句。直接去看看tomcat-jdbc-pool是怎么管理“借”的操作。&lt;br /&gt;
+&lt;code&gt;org.apache.tomcat.jdbc.pool.ConnectionPool borrowConnection()&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://kuang.io/images/posts/20150524-tomcat-jdbc-pool-borrowConnection-2.png&quot; alt=&quot;image&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;section-2&quot;&gt;借了后怎么还&lt;/h3&gt;
+&lt;p&gt;在连接池中，是不会去关闭真实的数据库连接的。只将归还至可用的池中。  &lt;br /&gt;
+如果真实关闭数据库连接了，那连接池的又有什么用咧。。。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://kuang.io/images/posts/20150524-tomcat-jdbc-pool-returnConnection.png&quot; alt=&quot;image&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;section-3&quot;&gt;清除不良账务&lt;/h3&gt;
+&lt;p&gt;当访问高峰过时，我们会创建不少新的连接。   &lt;br /&gt;
+高峰过后，我们需要去清理可能暂不再会使用的连接，释放些资源。（如有需要，可再创建嘛。有借有还，这再借当然不难落。）   &lt;br /&gt;
+&lt;em&gt;不用去找那么多类，连接的管理都在&lt;code&gt;ConnectionPool&lt;/code&gt;中。&lt;/em&gt;     &lt;br /&gt;
+&lt;code&gt;PoolCleaner extends TimerTask&lt;/code&gt;   &lt;br /&gt;
+在池的初始化时就进行注册，内部采用&lt;code&gt;scheduleAtFixedRate&lt;/code&gt;方式，定时扫描&lt;code&gt;idle&lt;/code&gt;队列中所有的空闲连接，进行释放（当然每个连接有标志其创建和最后将使用完成的时间。通过这些时间判断是否可以释放了）。&lt;/p&gt;
+
+&lt;h4 id=&quot;section-4&quot;&gt;贴源码&lt;/h4&gt;
+&lt;p&gt;技术文章写得比较少，正在不断练习中。  &lt;br /&gt;
+还是直接贴源码，这些源码注释还不错，最好的技术文档了。有空可以多去读读。&lt;/p&gt;
+
+&lt;h4 id=&quot;borrowconnection&quot;&gt;borrowConnection&lt;/h4&gt;
+&lt;pre&gt;&lt;code class=&quot;language-java&quot;&gt;/**
+ * Thread safe way to retrieve a connection from the pool
+ * @param wait - time to wait, overrides the maxWait from the properties,
+ * set to -1 if you wish to use maxWait, 0 if you wish no wait time.
+ * @return PooledConnection
+ * @throws SQLException
+ */
+private PooledConnection borrowConnection(int wait, String username, String password) throws SQLException {
+
+    if (isClosed()) {
+        throw new SQLException(&quot;Connection pool closed.&quot;);
+    } //end if
+
+    //get the current time stamp
+    long now = System.currentTimeMillis();
+    //see if there is one available immediately
+    PooledConnection con = idle.poll();
+
+    while (true) {
+        if (con!=null) {
+            //configure the connection and return it
+            PooledConnection result = borrowConnection(now, con, username, password);
+            //null should never be returned, but was in a previous impl.
+            if (result!=null) return result;
+        }
+
+        //if we get here, see if we need to create one
+        //this is not 100% accurate since it doesn&#39;t use a shared
+        //atomic variable - a connection can become idle while we are creating
+        //a new connection
+        if (size.get() &amp;lt; getPoolProperties().getMaxActive()) {
+            //atomic duplicate check
+            if (size.addAndGet(1) &amp;gt; getPoolProperties().getMaxActive()) {
+                //if we got here, two threads passed through the first if
+                size.decrementAndGet();
+            } else {
+                //create a connection, we&#39;re below the limit
+                return createConnection(now, con, username, password);
+            }
+        } //end if
+
+        //calculate wait time for this iteration
+        long maxWait = wait;
+        //if the passed in wait time is -1, means we should use the pool property value
+        if (wait==-1) {
+            maxWait = (getPoolProperties().getMaxWait()&amp;lt;=0)?Long.MAX_VALUE:getPoolProperties().getMaxWait();
+        }
+
+        long timetowait = Math.max(0, maxWait - (System.currentTimeMillis() - now));
+        waitcount.incrementAndGet();
+        try {
+            //retrieve an existing connection
+            con = idle.poll(timetowait, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException ex) {
+            if (getPoolProperties().getPropagateInterruptState()) {
+                Thread.currentThread().interrupt();
+            } else {
+                Thread.interrupted();
+            }
+            SQLException sx = new SQLException(&quot;Pool wait interrupted.&quot;);
+            sx.initCause(ex);
+            throw sx;
+        } finally {
+            waitcount.decrementAndGet();
+        }
+        if (maxWait==0 &amp;amp;&amp;amp; con == null) { //no wait, return one if we have one
+        if (jmxPool!=null) {
+            jmxPool.notify(org.apache.tomcat.jdbc.pool.jmx.ConnectionPool.POOL_EMPTY, &quot;Pool empty - no wait.&quot;);
+            }
+            throw new PoolExhaustedException(&quot;[&quot; + Thread.currentThread().getName()+&quot;] &quot; +
+                    &quot;NoWait: Pool empty. Unable to fetch a connection, none available[&quot;+busy.size()+&quot; in use].&quot;);
+        }
+        //we didn&#39;t get a connection, lets see if we timed out
+        if (con == null) {
+            if ((System.currentTimeMillis() - now) &amp;gt;= maxWait) {
+                if (jmxPool!=null) {
+                    jmxPool.notify(org.apache.tomcat.jdbc.pool.jmx.ConnectionPool.POOL_EMPTY, &quot;Pool empty - timeout.&quot;);
+                }
+                throw new PoolExhaustedException(&quot;[&quot; + Thread.currentThread().getName()+&quot;] &quot; +
+                    &quot;Timeout: Pool empty. Unable to fetch a connection in &quot; + (maxWait / 1000) +
+                    &quot; seconds, none available[size:&quot;+size.get() +&quot;; busy:&quot;+busy.size()+&quot;; idle:&quot;+idle.size()+&quot;; lastwait:&quot;+timetowait+&quot;].&quot;);
+            } else {
+                //no timeout, lets try again
+                continue;
+            }
+        }
+    } //while
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h4 id=&quot;returnconnection&quot;&gt;returnConnection&lt;/h4&gt;
+&lt;pre&gt;&lt;code class=&quot;language-java&quot;&gt;/**
+ * Returns a connection to the pool
+ * If the pool is closed, the connection will be released
+ * If the connection is not part of the busy queue, it will be released.
+ * If {@link PoolProperties#testOnReturn} is set to true it will be validated
+ * @param con PooledConnection to be returned to the pool
+ */
+protected void returnConnection(PooledConnection con) {
+    if (isClosed()) {
+        //if the connection pool is closed
+        //close the connection instead of returning it
+        release(con);
+        return;
+    } //end if
+
+    if (con != null) {
+        try {
+            con.lock();
+
+            if (busy.remove(con)) {
+
+                if (!shouldClose(con,PooledConnection.VALIDATE_RETURN)) {
+                    con.setStackTrace(null);
+                    con.setTimestamp(System.currentTimeMillis());
+                    if (((idle.size()&amp;gt;=poolProperties.getMaxIdle()) &amp;amp;&amp;amp; !poolProperties.isPoolSweeperEnabled()) || (!idle.offer(con))) {
+                        if (log.isDebugEnabled()) {
+                            log.debug(&quot;Connection [&quot;+con+&quot;] will be closed and not returned to the pool, idle[&quot;+idle.size()+&quot;]&amp;gt;=maxIdle[&quot;+poolProperties.getMaxIdle()+&quot;] idle.offer failed.&quot;);
+                        }
+                        release(con);
+                    }
+                } else {
+                    if (log.isDebugEnabled()) {
+                        log.debug(&quot;Connection [&quot;+con+&quot;] will be closed and not returned to the pool.&quot;);
+                    }
+                    release(con);
+                } //end if
+            } else {
+                if (log.isDebugEnabled()) {
+                    log.debug(&quot;Connection [&quot;+con+&quot;] will be closed and not returned to the pool, busy.remove failed.&quot;);
+                }
+                release(con);
+            }
+        } finally {
+            con.unlock();
+        }
+    } //end if
+} //checkIn
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h4 id=&quot;checkidle&quot;&gt;checkIdle&lt;/h4&gt;
+&lt;pre&gt;&lt;code class=&quot;language-java&quot;&gt;public void checkIdle(boolean ignoreMinSize) {
+
+    try {
+        if (idle.size()==0) return;
+        long now = System.currentTimeMillis();
+        Iterator&amp;lt;PooledConnection&amp;gt; unlocked = idle.iterator();
+        while ( (ignoreMinSize || (idle.size()&amp;gt;=getPoolProperties().getMinIdle())) &amp;amp;&amp;amp; unlocked.hasNext()) {
+            PooledConnection con = unlocked.next();
+            boolean setToNull = false;
+            try {
+                con.lock();
+                //the con been taken out, we can&#39;t clean it up
+                if (busy.contains(con))
+                    continue;
+                long time = con.getTimestamp();
+                if (shouldReleaseIdle(now, con, time)) {
+                    release(con);
+                    idle.remove(con);
+                    setToNull = true;
+                } else {
+                    //do nothing
+                } //end if
+            } finally {
+                con.unlock();
+                if (setToNull)
+                    con = null;
+            }
+        } //while
+    } catch (ConcurrentModificationException e) {
+        log.debug(&quot;checkIdle failed.&quot; ,e);
+    } catch (Exception e) {
+        log.warn(&quot;checkIdle failed, it will be retried.&quot;,e);
+    }
+
+}
+
+
+protected boolean shouldReleaseIdle(long now, PooledConnection con, long time) {
+    if (con.getConnectionVersion() &amp;lt; getPoolVersion()) return true;
+    else return (con.getReleaseTime()&amp;gt;0) &amp;amp;&amp;amp; ((now - time) &amp;gt; con.getReleaseTime()) &amp;amp;&amp;amp; (getSize()&amp;gt;getPoolProperties().getMinIdle());
+}
+
+private static volatile Timer poolCleanTimer = null;
+private static HashSet&amp;lt;PoolCleaner&amp;gt; cleaners = new HashSet&amp;lt;&amp;gt;();
+
+private static synchronized void registerCleaner(PoolCleaner cleaner) {
+    unregisterCleaner(cleaner);
+    cleaners.add(cleaner);
+    if (poolCleanTimer == null) {
+        ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        try {
+            Thread.currentThread().setContextClassLoader(ConnectionPool.class.getClassLoader());
+            poolCleanTimer = new Timer(&quot;PoolCleaner[&quot;+ System.identityHashCode(ConnectionPool.class.getClassLoader()) + &quot;:&quot;+
+                                       System.currentTimeMillis() + &quot;]&quot;, true);
+        }finally {
+            Thread.currentThread().setContextClassLoader(loader);
+        }
+    }
+    poolCleanTimer.scheduleAtFixedRate(cleaner, cleaner.sleepTime,cleaner.sleepTime);
+}
+
+private static synchronized void unregisterCleaner(PoolCleaner cleaner) {
+    boolean removed = cleaners.remove(cleaner);
+    if (removed) {
+        cleaner.cancel();
+        if (poolCleanTimer != null) {
+            poolCleanTimer.purge();
+            if (cleaners.size() == 0) {
+                poolCleanTimer.cancel();
+                poolCleanTimer = null;
+            }
+        }
+    }
+}
+
+protected static class PoolCleaner extends TimerTask {
+    protected WeakReference&amp;lt;ConnectionPool&amp;gt; pool;
+    protected long sleepTime;
+    protected volatile long lastRun = 0;
+
+    PoolCleaner(ConnectionPool pool, long sleepTime) {
+        this.pool = new WeakReference&amp;lt;&amp;gt;(pool);
+        this.sleepTime = sleepTime;
+        if (sleepTime &amp;lt;= 0) {
+            log.warn(&quot;Database connection pool evicter thread interval is set to 0, defaulting to 30 seconds&quot;);
+            this.sleepTime = 1000 * 30;
+        } else if (sleepTime &amp;lt; 1000) {
+            log.warn(&quot;Database connection pool evicter thread interval is set to lower than 1 second.&quot;);
+        }
+    }
+
+    @Override
+    public void run() {
+        ConnectionPool pool = this.pool.get();
+        if (pool == null) {
+            stopRunning();
+        } else if (!pool.isClosed() &amp;amp;&amp;amp;
+                (System.currentTimeMillis() - lastRun) &amp;gt; sleepTime) {
+            lastRun = System.currentTimeMillis();
+            try {
+                if (pool.getPoolProperties().isRemoveAbandoned())
+                    pool.checkAbandoned();
+                if (pool.getPoolProperties().getMinIdle() &amp;lt; pool.idle
+                        .size())
+                    pool.checkIdle();
+                if (pool.getPoolProperties().isTestWhileIdle())
+                    pool.testAllIdle();
+            } catch (Exception x) {
+                log.error(&quot;&quot;, x);
+            }
+        }
+    }
+
+    public void start() {
+        registerCleaner(this);
+    }
+
+    public void stopRunning() {
+        unregisterCleaner(this);
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+</content>
+ </entry>
+ 
+ <entry>
+   <title>管理自己—《哈佛商业评论》重印次数最多的文章之一</title>
+   <link href="http://kuang.io/self-management-by-drucker"/>
+   <updated>2015-03-02T00:00:00+08:00</updated>
+   <id>http://kuang.io/self-management-by-drucker</id>
+   <content type="html">&lt;p&gt;——彼得·德鲁克&lt;/p&gt;
+
+&lt;p&gt;本文是《哈佛商业评论》创刊以来重印次数最多的文章之一。作者彼得·德鲁克，自1971年后长期在美国加利福尼亚州克莱尔蒙特研究生大学任教。该文首次发表于1999年，节选自其著作《21世纪的管理挑战》（Management Challenges for the 21st Century，HarperCollins出版社，1999）。本文有删节。&lt;/p&gt;
+
+&lt;p&gt;我们生活的这个时代充满着前所未有的机会：如果你有雄心，又不乏智慧，那么不管你从何处起步，你都可以沿着自己所选择的道路登上事业的顶峰。&lt;/p&gt;
+
+&lt;p&gt;不过，有了机会，也就有了责任。今天的公司并不怎么管员工的职业发展；实际上，知识工作者必须成为自己的首席执行官。&lt;strong&gt;你应该在公司中开辟自己的天地，知道何时改变发展道路，并在可能长达50年的职业生涯中不断努力、干出实绩。要做好这些事情，你首先要对自己有深刻的认识——不仅清楚自己的优点和缺点，也知道自己是怎样学习新知识和与别人共事的，并且还明白自己的价值观是什么、自己又能在哪些方面做出最大贡献。因为只有当所有工作都从自己的长处着眼，你才能真正做到卓尔不群。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;历史上的伟人——拿破仑、达芬奇、莫扎特——都很善于自我管理。这在很大程度上也是他们成为伟人的原因。不过，他们属于不可多得的奇才，不但有着不同于常人的天资，而且天生就会管理自己，因而才取得了不同于常人的成就。而我们当中的大多数人，甚至包括那些还算有点天赋的人，都不得不通过学习来掌握自我管理的技巧。我们必须学会自我发展，必须知道把自己放在什么样的位置上，才能做出最大的贡献，而且还必须在长达50年的职业生涯中保持着高度的警觉和投入——也就是说，我们得知道自己应该何时换工作，以及该怎么换。&lt;/p&gt;
+
+&lt;h2 id=&quot;section&quot;&gt;我的长处是什么&lt;/h2&gt;
+
+&lt;p&gt;&lt;strong&gt;多数人都以为他们知道自己擅长什么。其实不然，更多的情况是，人们只知道自己不擅长什么——即便是在这一点上，人们也往往认识不清。&lt;/strong&gt;然而，一个人要有所作为，只能靠发挥自己的长处，而如果从事自己不太擅长的工作是无法取得成就的，更不用说那些自己根本干不了的事情了。&lt;/p&gt;
+
+&lt;p&gt;以前的人没有什么必要去了解自己的长处，因为一个人的出身就决定了他一生的地位和职业：农民的儿子也会当农民，工匠的女儿会嫁给另一个工匠等。但是，现在人们有了选择。我们需要知己所长，才能知己所属。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;要发现自己的长处，唯一途径就是回馈分析法（feedback analysis）。&lt;/strong&gt;每当做出重要决定或采取重要行动时，你都可以事先记录下自己对结果的预期。9到 12个月后，再将实际结果与自己的预期比较。我本人采用这种方法已有15到20年了，而每次使用都有意外的收获。比如，回馈分析法使我看到，我对专业技术人员，不管是工程师、会计师还是市场研究人员，都容易从直觉上去理解他们。这令我大感意外。它还使我看到，我其实与那些涉猎广泛的通才没有什么共鸣。&lt;/p&gt;
+
+&lt;p&gt;回馈分析法并不是什么新鲜的东西。早在14世纪，这种方法由一个原本会永远默默无闻的德国神学家发明，大约150年后被法国神学家约翰·加尔文和西班牙神学家圣依纳爵分别采用。他们都把这种方法用于其信徒的修行。事实上，回馈分析法使他们的信徒养成了一种始终注重实际表现和结果的习惯，这也是他们创立的教派——加尔文教会和耶稣会——能够主宰欧洲长达30年的原因。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;我们只要持之以恒地运用这个简单的方法，就能在较短的时间内（可能两三年），发现自己的长处——这是你需要知道的最重要的事情。&lt;/strong&gt;在采用这种方法之后，你就能知道，自己正在做（或没有做）的哪些事情会让你的长处无法发挥出来。同时，你也将看到自己在哪些方面能力不是特别强。最后，你还将了解到自己在哪些方面完全不擅长，做不出成绩来。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;根据回馈分析的启示，你需要在几方面采取行动。首先最重要的是，专注于你的长处，把自己放到那些能发挥长处的地方。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;其次，加强你的长处。&lt;/strong&gt;回馈分析会迅速地显示，你在哪些方面需要改善自己的技能或学习新技能。它还将显示你在知识上的差距——这些差距通常都可以弥补。数学家是天生的，但是人人都能学习三角学。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;第三，发现任何由于恃才傲物而造成的偏见和无知，并且加以克服。&lt;/strong&gt;有太多的人，尤其是那些术业有专攻的人，往往对其他领域的知识不屑一顾，或者认为聪明的头脑就可取代知识。比如，很多一流的工程师遇上与人相关的事就束手无策，他们还以此为荣——因为他们觉得，对条理清晰的工程师头脑来说，人太混乱无序了。与此形成鲜明对照的是，人力资源方面的专业人员常常以他们连基本的会计知识或数量分析都一无所知而自傲。不过，人们要是对这样的无知还沾沾自喜的话，那无异于自取灭亡。其实，要让自己的长处得到充分发挥，你就应该努力学习新技能、汲取新知识。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;另外一点也同样重要——纠正你的不良习惯。&lt;/strong&gt;所谓不良习惯，是指那些会影响你的工作成效和工作表现的事情。这样的习惯能很快地在回馈中反映出来。例如，一位企划人员可能发现自己美妙的计划最终落空，原因是他没有把计划贯彻到底。同那些才华横溢的人一样，他也相信好的创意能够移动大山。但是，真正移山的是推土机，创意只不过是为推土机指引方向，让它知道该到何处掘土。这位企划人员必须意识到不是计划做好就大功告成，接下来还得找人执行计划，并向他们解释计划，在付诸行动前须做出及时的调整和修改，最后要决定何时中止计划。&lt;/p&gt;
+
+&lt;p&gt;与此同时，回馈还会反映出哪些问题是由缺乏礼貌造成的。礼貌是一个组织的润滑剂。两个移动物相互接触时发生摩擦是一个自然规律，不仅无生命的物体是这样，人类也是如此。礼貌，其实也很简单，无非是说声“请”和“谢谢”，记住别人的名字，或问候对方家人这样的小事，但就是这种不起眼的细节，使得两个人能够融洽相处，不管他们彼此之间是否有好感。许多聪明人，尤其是聪明的年轻人，没有意识到这一点。&lt;strong&gt;如果回馈分析表明某个人只要一遇到需要别人合作的事就屡屡失败，那么很可能就意味着这个人的举止不大得体——也就是缺乏礼貌。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;把预期和实际结果进行比较，也会发现自己不能做什么。我们每个人都有许多一窍不通、毫无天分的领域，在这些领域我们甚至连平庸的水平都达不到。人们，尤其是知识工作者，就不应该试图去完成这些领域的工作和任务。他们应该尽量少把精力浪费在那些不能胜任的领域上，因为从无能到平庸要比从一流到卓越需要人们付出多得多的努力。然而，大多数人，尤其是教师，还有组织，都一门心思要把能力低下的人变成合格者。其实，他们还不如把精力、资源和时间花在将称职者培养成佼佼者上。&lt;/p&gt;
+
+&lt;h2 id=&quot;section-1&quot;&gt;我的工作方式是怎样的&lt;/h2&gt;
+
+&lt;p&gt;令人惊讶的是，很少有人知道自己平时是怎样把事情给做成的。实际上，我们当中的大多数人甚至不知道不同人有着不同的工作方式和表现。许多人不是以他们习惯的方式工作，这当然就容易造成无所作为。&lt;strong&gt;对于知识工作者来说，“我的工作方式是怎样的？”可能比“我的长处是什么？”这个问题更加重要。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;同一个人的长处一样，一个人的工作方式也是独一无二的。这由人的个性决定。不管个性是先天决定的，还是后天培养的，它肯定是早在一个人进入职场前就形成了。正如一个人擅长什么、不擅长什么是既定的一样，一个人的工作方式也基本固定，它可以略微有所调整，但是不可能完全改变——当然也不会轻易改变。&lt;strong&gt;而且就像人们从事自己最拿手的工作容易做出成绩一样，他们要是采取了自己最擅长的工作方式也容易取得成就。通常，几个常见的个性特征就决定了一个人的工作方式。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;我属于读者型，还是听者型？&lt;/strong&gt;首先，你要搞清楚的是，你是读者型（习惯阅读信息）还是听者型（习惯听取信息）的人。绝大多数人甚至都不知道还有读者型和听者型之说，而且很少有人既是读者型又是听者型。知道自己属于哪种类型的人更少。但是，有一些例子说明了这样的无知可能造成多大的危害。&lt;/p&gt;
+
+&lt;p&gt;德怀特·艾森豪威尔担任欧洲盟军最高统帅时，一直是新闻媒体的宠儿。他的记者招待会以其独特的风格出名——不管记者提出什么问题，艾森豪威尔将军都从容地对答如流。无论是介绍情况，还是解释政策，他都能够用两三句言简意赅的话就说清楚。十年后，艾森豪威尔当上了总统，当年曾对他十分崇拜的同一批记者，这时却公开瞧不起他。他们抱怨说，他从不正面回答问题，而是喋喋不休地胡侃着其他事情。他们总是嘲笑他回答问题时语无伦次，不合乎语法，糟蹋标准英语。&lt;/p&gt;
+
+&lt;p&gt;艾森豪威尔显然不知道自己属于读者型，而不是听者型。当他担任欧洲盟军最高统帅时，他的助手设法确保媒体提出的每一个问题至少在记者招待会开始前半小时以书面形式提交。这样，艾森豪威尔就完全掌握了记者提出的问题。而当他就任总统时，他的两个前任都是听者型——富兰克林·罗斯福和哈里·杜鲁门。这两位总统知道自己是听者型的，并且都喜欢举行畅所欲言的记者招待会。艾森豪威尔可能认为他必须去做两位前任所做的事。可是，他甚至连记者们在问些什么都从来没听清楚过。而且，艾森豪威尔并不是个极端的例子。&lt;/p&gt;
+
+&lt;p&gt;几年后，林登·约翰逊把自己的总统职位给搞砸了，这在很大程度上是因为他不知道自己是听者型的人。他的前任约翰·肯尼迪是个读者型的人，他搜罗了一些出色的笔杆子当他的助手，要求他们每次进行当面讨论之前务必先给他写通报。约翰逊留下了这些人，他们则继续写通报。可是他显然根本看不懂他们写的东西。不过，约翰逊以前当参议员时曾经表现非凡，因为议员首先必须是听者型。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;没有几个听者型的人可以通过努力变成合格的读者型——不管是主动还是被动的努力，反之亦然。因此，试图从听者型转为读者型的人会遭受林登·约翰逊的命运，而试图从读者型转为听者型的人会遭受德怀特·艾森豪威尔的命运。他们都不可能发挥才干或取得成就。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;section-2&quot;&gt;我如何学习&lt;/h2&gt;
+
+&lt;p&gt;要了解一个人的工作方式，需要弄清的第二点是，他是如何学习的。许多一流的笔杆子都不是好学生——温斯顿·邱吉尔就是一例。在他们的记忆中，上学往往是十足的折磨。然而，他们的同学有这种记忆的却很少。他们可能在学校里得不到什么乐趣，对他们来说上学的最大痛苦是无聊。有关这个问题的解释是，笔头好的人一般不靠听和读来学习，而靠写来学习，这已成了一种规律。学校不让他们以这种方式学习，所以他们的成绩总是很糟糕。&lt;/p&gt;
+
+&lt;p&gt;所有的学校都遵循这样的办学思路：只有一种正确的学习方式，而且人人都得遵从。但是，对学习方式跟别人不大一样的学生来说，被迫按学校教的方式来学习就是地狱。实际上，学习大概有六七种不同的方式。&lt;/p&gt;
+
+&lt;p&gt;像邱吉尔这样的人靠写来学习。还有些人以详尽的笔记来学习。例如，贝多芬留下了许多随笔小抄，然而他说，实际上他作曲时从来不看这些随笔小抄。当被问及他为什么还要用笔记下来时，据说他回答道：“如果我不马上写下来的话，我很快就会忘得一干二净。如果我把它们写到小本子上，我就永远不会忘记了，也用不着再看一眼。”有些人在实干中学习。另一些人通过听自己讲话学习。&lt;/p&gt;
+
+&lt;p&gt;我认识一位公司总经理，他把一个平庸的小家族企业发展成行业领军企业。他是一个通过讲话学习的人。他习惯于每周一次把全体高层管理人员召集到他的办公室，随后对他们讲上两三个小时。他总是提出政策性问题，在每一个问题上提出三种不同观点。但他很少请这帮同事发表意见或提出问题，他只需要听众听他讲话。这就是他的学习方式。虽然他是一个比较极端的例子，但是通过讲话学习绝不是一种少见的方法。成功的出庭律师也以同样的方式学习，许多诊断医师也是如此（我自己也是这样）。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;在所有最重要的自我认识当中，最容易做到的就是知道自己是怎样学习的。&lt;/strong&gt;当我问人们：“你怎么学习？”大多数人都知道答案。但是，当我问：“你根据这个认识来调整自己的行为吗？”没有几个人回答“是”。然而，知行合一是取得成就的关键；如果知行不合一，人们就会无所作为。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;我属于读者型还是听者型？我如何学习？这是你首先要问自己的问题。但是，光这些问题显然不够。要想做好自我管理，你还需要问这样的问题：我能与别人合作得好吗？还是喜欢单枪匹马？如果你确实有与别人进行合作的能力，你还得问问这个问题：我在怎样的关系下与他人共事？&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;有些人最适合当部属。&lt;/strong&gt;二战时期美国的大英雄乔治·巴顿将军是一个很好的例子。巴顿是美军的一名高级将领。然而，当有人提议他担任独立指挥官时，美国陆军参谋长、可能也是美国历史上最成功的伯乐，乔治·马歇尔将军说：“巴顿是美国陆军造就的最优秀的部下，但是，他会成为最差劲的司令官。”&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;一些人作为团队成员工作最出色。另一些人单独工作最出色。一些人当教练和导师特别有天赋，另一些人却没能力做导师。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;另一个关键的问题是，我如何才能取得成果——是作为决策者还是作为顾问？许多人做顾问时的表现会很出色，但是不能够承担决策的负担和压力。与此相反，也有许多人需要顾问来迫使他们思考，随后他们才能做出决定，接着迅速、自信和大胆地执行决定。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;顺便说一下，一个组织的二号人物在提升到一号职位时常常失败，也正是因为这个原因。最高职位需要一个决策者，而一个强势的决策者常常把其信赖的人放在二号位置，当他的顾问。顾问在二号位置上往往是很出色的，但是换到一号位置，他就不行了。他虽然知道应该做出什么样的决定，但是不能接受真正做决定的责任。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;其他有助于认识自我的重要问题包括：我是在压力下表现出色，还是适应一种按部就班、可预测的工作环境？我是在一个大公司还是在一个小公司中工作表现最佳？在各种环境下都工作出色的人寥寥无几。我不止一次地看到有些人在大公司中十分成功，换到小公司中则很不顺利。反过来也是如此。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;下面这个结论值得我们反复强调：不要试图改变自我，因为这样你不大可能成功。但是，你应该努力改进你的工作方式。另外，不要从事你干不了或干不好的工作。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;section-3&quot;&gt;我的价值观是什么&lt;/h2&gt;
+
+&lt;p&gt;要能够自我管理，你最后不得不问的问题是：我的价值观是什么？这不是一个有关伦理道德的问题。道德准则对每一个人都一样。要对一个人的道德进行测试，方法很简单。我把它称为“镜子测试”。&lt;/p&gt;
+
+&lt;p&gt;20世纪初，德国驻英国大使是当时在伦敦所有大国中最受尊重的一位外交官。显然，他命中注定会承担重任，即使不当本国的总理，至少也要当外交部长。然而，在1906年，他突然辞职，不愿主持外交使团为英国国王爱德华七世举行的晚宴。这位国王是一个臭名昭著的色鬼，并且明确表示他想出席什么样的晚宴。据有关报道，这位德国大使曾说：“我不想早晨刮脸时在镜子里看到一个皮条客。”&lt;/p&gt;
+
+&lt;p&gt;这就是镜子测试。&lt;strong&gt;我们所尊从的伦理道德要求你问自己：我每天早晨在镜子里想看到一个什么样的人？&lt;/strong&gt;在一个组织或一种情形下合乎道德的行为，在另一个组织或另一种情形下也是合乎道德的。但是，道德只是价值体系的一部分——尤其对于一个组织的价值体系来说。&lt;/p&gt;
+
+&lt;p&gt;如果一个组织的价值体系不为自己所接受或者与自己的价值观不相容，人们就会备感沮丧，工作效力低下。&lt;/p&gt;
+
+&lt;p&gt;让我们来看看一位十分成功的人力资源主管的经历。这位主管所在的公司被一家大企业收购。收购之后，她得到了提升，从事的是她以前做得最出色的工作，包括为重要职位挑选人才。这位主管深信，在选人时，公司只有在排除内部的所有可能人选后才能从外部招聘人才。但是她的新公司认为应该首先从外部招聘，以吸收新鲜血液。对于这两种方式，需要说明的一点是，根据我的经验，适当的方式是两者兼顾。然而，这两种方式在根本上是互不相容的——表面上是政策不同，实质是价值观的不同。&lt;strong&gt;这说明在该公司人们对以下三个问题有着不同看法：组织与员工之间是怎样的关系；组织应该为员工以及员工的发展承担何种责任；一个人对企业最重要的贡献是什么。&lt;/strong&gt;经过几年挫折，这位主管最终辞职——尽管她的经济损失很大。她的价值观和这个组织的价值观就是无法融合。&lt;/p&gt;
+
+&lt;p&gt;同样，一家制药公司无论是通过不断的小幅改进，还是通过几次费用高昂、风险巨大的“突破”来取得出色业绩，都主要不是一个经济问题。这两种战略的结果可能都差不多。实质上，这是两种价值体系之间的冲突。一种价值体系认为公司的贡献是帮助医生把他们已经在做的工作锦上添花，另一种价值体系的取向是进行更多的科学发现。&lt;/p&gt;
+
+&lt;p&gt;至于一个企业的经营是着眼于短期结果，还是注重长远发展，这同样是价值观问题。财务分析师认为，企业可两者同时兼顾。成功的企业家知道得更清楚。诚然，每一家公司都必须取得短期成果。但是在短期成果与长期增长之间的冲突中，每一家公司都将决定自己所选择的重点。从根本上说，这是一种关于企业职能与管理层责任的价值观冲突。&lt;/p&gt;
+
+&lt;p&gt;价值观冲突并不限于商业组织。美国发展最快的一个牧师教会，衡量工作成败的尺度是新教徒的人数。它的领导层认为，重要的是有多少新教徒入会。随后，上帝将满足他们的精神需求，或者至少会满足足够比例的新教徒的需求。另一个福音派牧师教会认为，重要的是人们的精神成长。这个教会慢慢地让那些形式上入会但精神上并没有融入教会生活的新教徒选择了离开。&lt;/p&gt;
+
+&lt;p&gt;这同样不是一个数量问题。乍一看，第二个教会好像发展较慢。但是，它留住新教徒的比例要远高于第一个。换言之，它的发展比较稳固。这也不是一个神学问题，至少首先并不是神学问题，而是有关价值观的问题。在一次公开辩论中，一位牧师这样说：“除非你先加入教会，否则你永远找不到天国之门。”&lt;/p&gt;
+
+&lt;p&gt;而另一位牧师反驳说：“不，除非你先有心寻找天国之门，否则你就不属于教会。”&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;组织和人一样，也有价值观。为了在组织中取得成效，个人的价值观必须与这个组织的价值观相容。两者的价值观不一定要相同，但是必须相近到足以共存。不然，这个人在组织中不仅会感到沮丧，而且做不出成绩。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;一个人的工作方式和他的长处很少发生冲突，相反，两者能产生互补。但是，一个人的价值观有时会与他的长处发生冲突。一个人做得好甚至可以说是相当好、相当成功的事情——可能与其价值体系不吻合。在这种情况下，这个人所做的工作似乎并不值得贡献毕生的精力（甚至没必要贡献太多的精力）。&lt;/p&gt;
+
+&lt;p&gt;如果可以，请允许我插入一段个人的故事。多年前，我也曾不得不在自己的价值观和做得很成功的工作之间做出选择。20世纪30年代中期，我还是一个年轻人，在伦敦做投资银行业务，工作非常出色。这项工作显然能发挥我的长处。然而，我并不认为自己担任资产管理人是在做贡献。我认识到，我所重视的是对人的研究。我认为，一生忙于赚钱、死了成为墓地中的最大富翁没有任何意义。当时我没有钱，也没有任何就业前景。尽管当时大萧条仍在持续，我还是辞去了工作。这是一个正确的选择。换言之，价值观是并且应该是最终的试金石。&lt;/p&gt;
+
+&lt;h2 id=&quot;section-4&quot;&gt;我属于何处&lt;/h2&gt;
+
+&lt;p&gt;少数人很早就知道他们属于何处。比如，数学家、音乐家和厨师，通常在四五岁的时候就知道自己会成为数学家、音乐家和厨师了。物理学家通常在十几岁甚至更早的时候就决定了自己的工作生涯。但是，大多数人，尤其是很有天赋的人，至少要过了二十五六岁才知道他们将身属何处。&lt;strong&gt;然而，到这个时候，他们应该知道上面所谈的三个问题的答案：我的长处是什么？我的工作方式是怎样的？我的价值观是什么？随后，他们就能够并且应该决定自己该向何处投入精力。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;或者，他们应该能够决定自己不属于何处。已经知道自己在大公司里干不好的人，应该学会拒绝在一个大公司中任职。已经知道自己不适合担任决策者的人，应该学会拒绝做决策工作。巴顿将军（他自己大概永远不知道这一点）本来应该学会拒绝担任独立总指挥的。&lt;/p&gt;
+
+&lt;p&gt;同样重要的是，知道上述三个问题的答案，也使得一个人能够坦然接受一个机会、一个邀请或一项任务。“是的，我将做这件事。但是，我将按照我自己的特点，采取这样的方式来做这件事，进行这样的组织安排，这样来处理当中所牵涉的关系。这是我在这个时间范围内应该会取得的成果，因为这就是我。”&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;成功的事业不是预先规划的，而是在人们知道了自己的长处、工作方式和价值观后，准备把握机遇时水到渠成的。知道自己属于何处，可使一个勤奋、有能力但原本表现平平的普通人，变成出类拔萃的工作者。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;section-5&quot;&gt;我该做出什么贡献&lt;/h2&gt;
+
+&lt;p&gt;&lt;strong&gt;综观人类的发展史，绝大多数人永远都不需要提出这样一个问题：我该做出什么贡献？因为他们该做出什么贡献是由别人告知的，他们的任务或是由工作本身决定的（例如农民或工匠的任务），或是由主人决定的（例如佣人的任务）。以前的人大多都处于从属地位，别人吩咐他们做什么，就做什么，这被认为是理所当然的。甚至到了20世纪50年代和60年代，那时涌现出的知识工作者（即所谓的“组织人”， organization man）还指望公司的人事部为他们做职业规划。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;随后，到20世纪60年代末，就再没有人想让别人来安排自己的职业生涯了。年轻的男男女女开始提出这个问题：我想做什么？而他们所听到的答案就是“你们自行其是吧”。但是，这种回答同“组织人”听命公司的做法一样错误。那些相信自行其是就能做出贡献、实现抱负、取得成功的人，一般连三点中的任何一点都做不到。&lt;/p&gt;
+
+&lt;p&gt;尽管如此，我们还是不能走回头路，让别人来吩咐、安排自己要干什么。对于知识工作者来说，他们还不得不提出一个以前从来没有提出过的问题：&lt;strong&gt;我的贡献应该是什么？要回答这个问题，他们必须考虑三个不同的因素：当前形势的要求是什么？鉴于我的长处、我的工作方式以及我的价值观，我怎样才能对需要完成的任务做出最大贡献？最后，必须取得什么结果才能产生重要影响？&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;请看一位新任命的医院院长的经历。这是一所享有盛名的大医院，30年来一直就靠名气顺利经营着。新院长上任后决定了自己应做的贡献：两年内在医院的某个重要领域建立起卓越服务的标准。他决定以急诊室为重点，因为该院的急诊室地方比较大，受人注意，而又秩序混乱。他决定，到急诊室就诊的每一个患者必须在60秒钟之内由一名合格的护士接待。一年之内，该医院的急诊室变成了美国所有医院的样板，又过了两年，整个医院的面貌焕然一新。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;正如这个事例所表明的，把眼光放得太远是不大可能的——甚至不是特别有效。一般来说，一项计划的时间跨度如果超过了 18个月，就很难做到明确和具体。因此，在多数情况下我们应该提出的问题是：我在哪些方面能取得将在今后一年半内见效的结果？如何取得这样的结果？回答这个问题时必须对几个方面进行权衡。首先，这些结果应该是比较难实现的——用当前的一个时髦词说，就是要有“张力” （stretching）。但是，这些结果也应该是能力所及的。&lt;/strong&gt;设定一个不能实现的目标或者只能在可能性微乎其微的情况下实现的目标，根本不能叫雄心勃勃，简直就是愚蠢。其次，这些结果应该富有意义，要能够产生一定影响。最后，结果应该明显可见，如果可能的话，还应当能够衡量。确定了要实现的结果之后，接着就可以制订行动方针：做什么，从何处着手，如何开始，目标是什么，在多长时间内完成。&lt;/p&gt;
+
+&lt;h2 id=&quot;section-6&quot;&gt;对人际关系负责&lt;/h2&gt;
+
+&lt;p&gt;除了少数伟大的艺术家、科学家和运动员，很少有人是靠自己单枪匹马而取得成果的。不管是组织成员还是个体职业者，大多数人都要与别人进行合作，并且是有效的合作。要实现自我管理，你需要对自己的人际关系负起责任。这包括两部分内容。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;首先是要接受别人是和你一样的个体这个事实。&lt;/strong&gt;他们会执意展现自己作为人的个性。这就是说，他们也有自己的长处，自己的做事方式和自己的价值观。因此，&lt;strong&gt;要想卓有成效，你就必须知道共事者的长处、工作方式和价值观。&lt;/strong&gt;这个道理听起来让人很容易明白，但是没有几个人真正会去注意。一个习惯于写报告的人就是个典型的例子——他在第一份工作时就培养起写报告的习惯，因为他的老板是一个读者型的人，而即使下一个老板是个听者型，此人也会继续写着那肯定没有任何结果的报告。这位老板因此肯定会认为这个员工愚蠢、无能、懒惰，肯定干不好工作。但是，如果这个员工事先研究过新老板的情况，并分析过这位老板的工作方式，这种情况本来可以避免。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;老板既不是组织结构图上的一个头衔，也不是一个“职能”。他们是有个性的人，他们有权以自己最得心应手的方式来工作。与他们共事的人有责任观察他们，了解他们的工作方式，并做出相应的自我调整，去适应老板最有效的工作方式。事实上，这就是“管理”上司的秘诀。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;这种方法适用于所有与你共事的人。每个人都有他自己的做事方法，也有权按照自己的方式来工作，而不是按你的方法来工作。重要的是，他们能否有所作为以及他们持有什么样的价值观。至于工作方式，人各有别。提高效力的第一个秘诀是了解跟你合作和你要依赖的人，以利用他们的长处、工作方式和价值观。工作关系应当既以工作为基础，也以人为基础。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;人际关系责任的第二部分内容是沟通责任。&lt;/strong&gt;在我或是其他人开始给一个组织做咨询时，我们听到的第一件事都与个性冲突有关。其中大部分冲突都是因为：人们不知道别人在做什么，他们又是采取怎样的工作方式，专注于做出什么样的贡献以及期望得到怎样的结果。而这些人不了解情况的原因是，他们没有去问，结果也就不得而知。&lt;/p&gt;
+
+&lt;p&gt;这种不去问明情况的做法，与其说是反映了人类的愚蠢，倒不如说是历史使然。在以前，人们没必要把这些情况告诉任何人。比如在中世纪的城市，一个区的每一个人从事的行业都一样。在乡村，土地刚一解冻，山谷里的每一个人就开始播种同一种农作物。即使有少数人做的事情和大家不一样，他们也是单独工作，因此不需要告诉任何人他们在做什么。&lt;/p&gt;
+
+&lt;p&gt;而现在，大多数人都与承担着不同任务和责任的人一道工作。市场营销副总裁可能是销售出身，知道有关销售的一切，但是，对于自己从未做过的事情，比如定价、广告、包装等等，就一无所知了。&lt;strong&gt;所以，那些正在做这些工作的人必须确保营销副总裁懂得他们设法做的是什么、他们为什么要做这件事、他们将如何去做以及期望取得什么结果。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;如果营销副总裁不懂得这些高层次的、知识型的专业人士在做什么，错主要在后者身上，而不在自己。反过来说，营销副总裁的责任则是确保他的所有同事都知道自己是怎样看待营销这项工作的：他的目标是什么、他如何工作，以及他对他本人和他的每一个同事有什么期望。&lt;/p&gt;
+
+&lt;p&gt;即使一些人懂得负起人际关系责任的重要性，他们和同事的交流也往往不够。他们总是有所顾虑，怕别人把自己看成是一个冒昧、愚蠢、爱打听的人。他们错了。因为我们看到，每当有人找到他的同事说“这是我所擅长的工作。这是我的做事方式。这是我的价值观。这是我计划做出的贡献和应当取得的成果”，这个人总会得到如此回答：“这太有帮助了，可你为什么不早点告诉我？”&lt;/p&gt;
+
+&lt;p&gt;如果一个人继续问道：“那么，关于你的长处、你的工作方式、你的价值观以及你计划做出的贡献，我需要知道什么？”他也会得到类似的答复——据我的经验，无一例外。事实上，知识工作者应该向与他们共事的每一个人，不管是下属、上司、同事还是团队成员，都发出这样的疑问。而且，每次提出此类问题，都会得到这样的回答：“谢谢你来问我。但是，你为什么不早点问我？”&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;组织已不再建立在强权的基础上，而是建立在信任的基础上。人与人之间相互信任，不一定意味着他们彼此喜欢对方，而是意味着彼此了解。&lt;/strong&gt;因此，人们绝对有必要对自己的人际关系负责。这是一种义务。不管一个人是公司的一名成员，还是公司的顾问、供应商或经销商，他都需要对他的所有共事者负起这种责任。所谓共事者，是指在工作上他所依赖的同事以及依赖他的同事。&lt;/p&gt;
+
+&lt;h2 id=&quot;section-7&quot;&gt;管理后半生&lt;/h2&gt;
+
+&lt;p&gt;当多数人的工作是体力劳动时，你不必为自己的后半生担心。你只要继续从事你一直在做的工作就行了。如果你够幸运，能在工厂或铁路辛勤工作40年后撑下来，你就可以快乐地度过余生，什么也用不着干。然而，现在的多数工作都是知识工作，而知识工作者在干了40年后，仍能发挥余热，他们只是有些厌倦。&lt;/p&gt;
+
+&lt;p&gt;我们听到了许多有关经理人中年危机的谈论，“厌倦”这个词在其中频频出现。45岁时，多数经理人的职业生涯达到了顶峰，他们也知道这一点。在做了 20年完全相同的工作之后，他们已经得心应手。但是他们学不到新东西，也没有什么新贡献，从工作中得不到挑战，因而也谈不上满足感。然而，在他们面前，还有20到25年的职业道路要走。这就是为什么经理人在进行自我管理后，越来越多地开始发展第二职业的原因。&lt;/p&gt;
+
+&lt;p&gt;发展第二职业有三种方式。第一种是完全投身于新工作。这常常只需要从一种组织转到另一种组织。例如，一家大公司某事业部的会计师成为一家中型医院的财务总监。但是也有越来越多的人转入完全不同的职业。例如，公司经理在45岁时进入政府内阁；或者中层管理人员在公司工作20年后离职，到法学院进修，成为一个小镇的律师。&lt;/p&gt;
+
+&lt;p&gt;还有许多人在第一份职业中取得的成功有限，于是改行从事第二职业。这样的人有很多技能，他们也知道该如何工作。而且，他们需要一个社群——因为孩子已长大单飞，剩下一座空屋。他们也需要收入。但最重要的是，他们需要挑战。&lt;/p&gt;
+
+&lt;p&gt;为后半生做准备的第二种方式是，发展一个平行的职业。许多人的第一职业十分成功，他们还会继续从事原有工作，或全职或兼职，甚至只是当顾问。但是，除此之外，他们会开创一项平行的工作，通常是在非营利机构，每周占用10个小时。例如，他们可能接手教会的管理，或者担任当地女童子军顾问委员会主席。他们也可能管理受虐妇女庇护所，担任当地公共图书馆的儿童图书管理员，或在学校董事会任职等。&lt;/p&gt;
+
+&lt;p&gt;最后一种方法是社会创业。社会创业者通常是在第一职业中非常成功的人士。他们都热爱自己的工作，但是这种工作对他们已经不再有挑战性。在许多情况下，他们虽然继续做着原来的工作，但在这份工作上花的时间越来越少。他们同时开创了另一项事业，通常是非营利性活动。例如，我的朋友鲍勃·布福德创办了一个非常成功的电视公司，现在他仍然经营着。但与此同时，他还创建了一个与新教教会合作的非营利组织，也做得非常成功。现在他又创建了一个组织，专门指导社会创业者在经营原有业务的同时，如何管理自己另外创办的非营利机构。&lt;/p&gt;
+
+&lt;p&gt;管理好自己后半生的人可能总是少数。多数人可能“一干到底”，数着年头一年一年过去，直至退休。但是，正是这些少数人，这些把漫长的工作寿命看做是自己和社会之机会的男男女女，才会成为领袖和模范。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;管理好后半生有一个先决条件：你必须早在你进入后半生之前就开始行动。当30年前人们首次认识到工作寿命正在迅速延长时，许多观察家（包括我自己）认为，退休人员会越来越多地成为非营利机构的志愿者。可是，这种情况并没有发生。一个人如果不在40岁之前就开始做志愿者，那他60岁之后也不会去做志愿者。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;同样，我认识的所有社会创业者，都是早在他们原有的事业达到顶峰之前就开始从事他们的第二事业。&lt;/strong&gt;请看一名成功律师的例子。这位律师是一家大公司的法律顾问，他同时在自己所在的州开办了模特培训学校。早在他 35岁左右的时候，他就开始志愿为学校提供法律咨询。40岁时被推选为一家学校的董事会成员。50岁时，他积累起了一笔财富，办起了自己的企业——建立并经营模特培训学校。然而此时，他依旧在那家他年轻时参与创建的公司里担任首席法律顾问，而且几乎是全职工作。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;发展第二兴趣（而且是趁早发展）还有一个原因：任何人都不能指望在生活或工作中很长时间都不遭遇严重挫折。&lt;/strong&gt;有一位很能干的工程师在45岁时错过了晋升的机会。另一位也很能干的普通学院的教授在42岁时认识到，即使她完全具备担任教授的资格，她永远也不会在一所有名的大学里获得教授职位。还有一位则是在家庭生活里出现了悲剧：婚姻破裂或者痛失子女。在这样的时刻，第二兴趣——不仅仅是业余爱好——可能发挥重要作用。例如，这位工程师现在知道他在工作上并不十分成功。但是，在公司以外的活动中，例如负责教会资金的管理，他是成功的。一个人可能家庭破碎，但是他能在第二兴趣的活动中发现还有社区这个大“家庭”。&lt;/p&gt;
+
+&lt;p&gt;在一个崇尚成功的社会里，拥有各种选择变得越来越重要。从历史上来看，却没有“成功”一说。绝大多数人只期望坚守“适当的位置”。唯一的流动性是向下的流动性。然而，在知识社会里，我们期望每一个人都能取得成功。这显然是不可能的。对许多人来说，能避免失败就行。可是有成功的地方，就会有失败。因此，有一个能够让人们做出贡献、发挥影响力或成为“大人物”的领域，这不仅对个人十分重要，对个人的家庭也同样重要。这意味着人们需要找到一个能够有机会成为领袖、受到尊重、取得成功的第二领域——可能是第二份职业，也可能是平行的职业或社会创业。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;自我管理中面临的挑战看上去比较明显，甚至非常基本，其答案可能不言自明，甚至近乎幼稚。但是，自我管理需要个人，尤其是知识工作者，做出以前从未做过的事情。&lt;/strong&gt;实际上，自我管理需要每一个知识工作者在思想和行动上都要成为自己的首席执行官。更进一步来看，这样的转变——从一切听从别人吩咐的体力劳动者到不得不自我管理的知识工作者——也使得社会结构发生了深刻变化。历史上每一个社会，甚至是个人主义倾向最强的社会，都认为两件事情理所当然（即使只是下意识的）：第一，组织比员工更长寿；第二，大多数人从不挪地方。&lt;/p&gt;
+
+&lt;p&gt;如今，情况恰恰相反。知识工作者的寿命超过了组织寿命，而且他们来去自如。于是，人们对自我管理的需要在人类事务中掀起了一场革命&lt;/p&gt;
+</content>
+ </entry>
+ 
+ <entry>
+   <title>管理思维启蒙的X,Y,Z理念</title>
+   <link href="http://kuang.io/management-X-and-Y"/>
+   <updated>2015-01-13T00:00:00+08:00</updated>
+   <id>http://kuang.io/management-X-and-Y</id>
+   <content type="html">&lt;p&gt;最近自组织团队不少有提及，各种理论和实践技巧。个人感觉自组织团队可遇不可求，或者说，要达到自组织挑战非常大，团队自我进化需要不少的时间，并且保持不断追求卓越。&lt;/p&gt;
+
+&lt;p&gt;面对现实碰到的工作，我还是比较信奉德鲁克的理念。自组织团队仍会去期望和努力。&lt;/p&gt;
+
+&lt;p&gt;在影响我管理思维中，首先是X和Y理论。在&lt;a href=&quot;http://www.amazon.cn/gp/product/B009WMBFPQ/ref=as_li_ss_tl?ie=UTF8&amp;amp;camp=536&amp;amp;creative=3132&amp;amp;creativeASIN=B009WMBFPQ&amp;amp;linkCode=as2&amp;amp;tag=kqy929&quot;&gt;《管理使命篇》&lt;/a&gt;的《工人和工作：理念和现实》有很详细的分析。必须得感谢我们的王鲁克（懂得的就懂得）。&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;X理论认为：绝大多数人不能够自己承担责任，而必须由别人来照料，相反，Y理论认为：人对工作都有一种心理上的需求，并想要取得成就和承担责任，&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;X理论认为人是不成熟的，Y理论则基本上认为人是想要或成为成熟的人。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;对于我们从事软件开发的知识工作者，我们就不去讨论X理论的适应问题。必须是Y理论的支持者，如果身边是X理论个性的同事（除非某些特殊的岗位），不会考虑留在团队中。&lt;/p&gt;
+
+&lt;p&gt;另外，现在还有Z理念。在&lt;a href=&quot;http://www.amazon.cn/gp/product/B007H4NQ26/ref=as_li_ss_tl?ie=UTF8&amp;amp;camp=536&amp;amp;creative=3132&amp;amp;creativeASIN=B007H4NQ26&amp;amp;linkCode=as2&amp;amp;tag=kqy929&quot;&gt;《管理3.0》&lt;/a&gt;里面有提到。&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;就是Y理论的升级版，认为员工都希望和同事的关系融洽，渴望被肯定。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;这些都属于内在激励。个人觉得对于我们程序员们。内在激励，最持久，最激发动力。&lt;/p&gt;
+
+&lt;p&gt;我们围绕产品的价值（给客户解决了些什么问题，或者给公司节省了多少成本）。另外，就是自我技术技能的不断提高，持续学习。&lt;/p&gt;
+
+&lt;p&gt;曾经，我也有段对自组织的崇拜，迷恋期，也去挑战了一把。但收获的却是各种自由，各种无章可寻，慢慢lost（并不是表达自组织的理念是瞎扯，而是这不是一蹴而就）。&lt;/p&gt;
+
+&lt;p&gt;就如德鲁克提到&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;本尼斯是一位出色的工业心理学家，他试图把纽约北部古老而日趋衰败的布法罗大学改造成第一流的著名大学。他和他的同事所采取的方法，虽然是以Y理论为基础的，但是并没有提供结构、方向和安全。结果，引起了很大的骚动，完全失败了。改造没有取得成就，而是使大家缺乏方向、缺乏目标、缺乏控制，大家灰心丧气，这是后来成为辛辛那提大学校长的本尼斯自己讲的。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;Y理论并不是放任自流，自行成长，达到设定的目标，接受高强度的挑战。信奉Y理论的，更应该理解这是位严厉的“监工”。提供方向，提供指导，提供流程等等，帮忙达成目标。甚至这对自己也是个非常高的要求。这也是经常提到的“服务型领导”。&lt;/p&gt;
+
+</content>
+ </entry>
+ 
+ <entry>
+   <title>不要拆散洋基队</title>
+   <link href="http://kuang.io/not-break-cohesive-team"/>
+   <updated>2015-01-10T00:00:00+08:00</updated>
+   <id>http://kuang.io/not-break-cohesive-team</id>
+   <content type="html">&lt;p&gt;&lt;img src=&quot;http://kuang.io/images/20150110-team-1.png&quot; alt=&quot;image&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;在《人件》书中有这么一段：&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;如果团队已经凝聚，就不要拆散团队。至少，要给大家一个机会在一起尝试另外的项目。他们可能会选择分头行事，但这是他们应该有的选择权。当团队一起从一个项目转到下一个，他们会动力十足地踏上新的征程&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;非常赞同作者的观念。当一个团队非常有默契时，形成自己团队的气味时，尽量不要去拆散他们。可能以为，让他们发散更多的光和热。有时，并不像想象中那么成功。&lt;/p&gt;
+
+&lt;p&gt;一些团队在培育良好的融合团队方面保持了持续的“好运”。当然，这不是什么好运，而是化学效应。在这些组织中，一种混合了竞争与信任、相互认可、友善的共处的氛围为高度融合的团队养成提供了肥沃的土壤。&lt;/p&gt;
+
+&lt;p&gt;去年在参加上海的QCON大会时，百姓网CTO潘晓良，在演讲&lt;a href=&quot;http://www.infoq.com/cn/presentations/baixing-team-expansion-path&quot;&gt;《从“小而美”到“中而美”——百姓网的团队扩张之路》&lt;/a&gt;，提到团队的成长就如森林。&lt;/p&gt;
+
+&lt;p&gt;他分享在团队扩大时的一个痛的领悟。&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;新建项目时，非常反对抽几个去做。因为抽几个人代表的是什么。人不是一块砖头，不是建设材料。你把从这块地方抽走，放到另外一个地方。你好像所有的东西都会运转起来，其实不是的。这就好像一个运转很好的生态系统，一颗树放在那里，你把它挖出来，再放到另外一个地方。可能变成一个很美妙的园艺，但是它的根需要慢慢生长，从下面长上去，跟其他人产生协作的。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;我们曾经，网站前台的团队，所有的角色都有，全都在一块。一开始也是不顺的，经过半年的磨合，做得非常顺。但是有一天，我们做了一件事情，这样的划分有问题，我们重新划一个。然后跟每个人谈，我跟你讲道理，这样调整有什么好处，公司的战略做了调整。所有人他们内心里面不愿意的，好不容易形成了一个很好的氛围。尤其对他们所做的产品，情感在里面。他们也理解，公司这样做是OK的。好吧，那你就调吧，我就配合公司调整。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;现在我们是这么干了：&lt;br /&gt;
+除非，有人这块业务做得非常棒，同时又喜欢做新的挑战的事情，并且有做出成果。那么，他单独去成长可能会更好。&lt;br /&gt;
+当然，如果某个组织明显坏掉了，有问题时，我们会去动他。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;这2年，我在公司同样经过好几个不同的部门，并且还比较频繁。最开始以为，没问题，愿意去接受挑战。新鲜的事情，放空，充满激情重新开始。&lt;/p&gt;
+
+&lt;p&gt;但半年后，公司发展需要，然后又去新的部门，摸索新的目标。&lt;/p&gt;
+
+&lt;p&gt;这样，并不是不好，但如果过于频繁。就一直在寻找目标，设定新目标。就如一翻事业，本想好好经营。还来得及施展手脚时，又要换个行当。&lt;/p&gt;
+
+&lt;p&gt;最近在做的产品，我们团队（整套角色）前前后后大半年的时间，才形成有战斗力，彼此互信友善，积极上进的团队。&lt;/p&gt;
+
+&lt;p&gt;团队是年初时有了产品经理，开工干的，然后招募新的开发人员。而后，发现新的开发气味不合。改成，在内部“挖”个彼此合作近3年的同事，一起扛这项目。很快，项目马上就见起色的。并且当时我们在推敏捷开发流程，敏捷成熟度也刷刷的上去了。团队正准备冲刺成就一翻时。&lt;/p&gt;
+
+&lt;p&gt;我们产品经理（兼ScrumMaster）被调动部门。调整新的产品经理过来，团队又再次彼此的重新融合。起初，团队心都快碎了，伙伴们再扛。&lt;/p&gt;
+
+&lt;p&gt;新产品经理接受熟悉产品，我继续招募开发，培训。团队再次磨合研发流程，敏捷理念。形成新的团队氛围。时间和精力，就在这频繁更换中默默的消耗。&lt;/p&gt;
+
+&lt;p&gt;该产品因为是比较老的项目，如上情况一样多次移交。其中有不少技术债务，但在团队磨合初期，要让团队迅速凝聚，上线新产品是非常好的方式。技术故事都不敢随意重构。一怕产品不了解不深，重构容易失败；二怕技术故事成果不易显现。有时产品经理在做产品也很无辜，一不小心掉坑了。偶尔一个小功能，工时还不少。&lt;/p&gt;
+
+&lt;p&gt;开始时，仍是小产品，小bug的修复小步小跑，也尽量不去动水太深的产品。2个月后，重新发力，技术故事和新产品同时不断迭代。一个星期1个版本快速往前推进。&lt;/p&gt;
+
+&lt;p&gt;新的团队又在不断迭代中成长，磨合，焕发激情。大家都很自然，拼博，享受工作挑战和快节奏。（但如果团队核心人员又如上调整，也许又得重新磨合）&lt;/p&gt;
+
+&lt;p&gt;这样的环境没有防御保守的气息，只想着获得成功。大家的工作是一个整合的产品，团队共同的产品目标努力。并且形成自己的气味。就像《人件》中提到&lt;code&gt;高效团队养成中的团队形成的化学反应&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;你不能每次都促成它发生，但当一个团队真的凝聚起来时，任何代价都是值得的。人们工作愉悦，精力充沛。大家达成一个一个交付和里程碑，并不断前进。人们彼此欣赏，并且忠于这个团队以及让团队能够存在的环境。&lt;/strong&gt;&lt;/p&gt;
+
+</content>
+ </entry>
+ 
+ <entry>
+   <title>使用flyway对应用的数据库版本控制</title>
+   <link href="http://kuang.io/why-db-migration-tools-flyway"/>
+   <updated>2015-01-09T00:00:00+08:00</updated>
+   <id>http://kuang.io/why-db-migration-tools-flyway</id>
+   <content type="html">&lt;p&gt;&lt;img src=&quot;http://kuang.io/images/why_db_migraion_tools.png&quot; alt=&quot;image&quot; /&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;db-migration-tools&quot;&gt;为什么要使用DB migration tools&lt;/h2&gt;
+
+&lt;p&gt;我们可以想象，多位开发人员，多个数据库环境。  &lt;br /&gt;
+偶尔就出现：哎呀！集成环境的数据库忘记更新了。&lt;/p&gt;
+
+&lt;h2 id=&quot;flyway&quot;&gt;为什么推荐flyway&lt;/h2&gt;
+
+&lt;h3 id=&quot;section&quot;&gt;简单，好用&lt;/h3&gt;
+&lt;p&gt;先前有用过mybatis中的migration，但经常出现莫名其名的异常，并且也不支持多条SQL在1个文件中。    &lt;br /&gt;
+最开始在使用flyway时，没有downgrade。有些觉得奇怪，像mybatis的migration和rails中，都会支持。   &lt;br /&gt;
+后来想想，其实对数据库的downgrade真是要甚用（最好不用），会陷入麻烦，不清楚真实的版本变化。宁可重新写个script downgrade。&lt;/p&gt;
+
+&lt;h3 id=&quot;javaspring&quot;&gt;支持java调用及spring集成&lt;/h3&gt;
+&lt;p&gt;这就能在应用程序中，直接进行管理。  &lt;br /&gt;
+我采用的方式，是根据web应用在不同的环境启动时，进行不同环境 db migration.  &lt;br /&gt;
+在往集成发布时，随tomcat执行数据库的版本同步。    &lt;br /&gt;
+具体的使用，&lt;a href=&quot;http://flywaydb.org/getstarted/&quot;&gt;flyway官方文档&lt;/a&gt;详细简洁，几下就轻松搞定。&lt;/p&gt;
+
+&lt;h3 id=&quot;spring&quot;&gt;跟spring集成&lt;/h3&gt;
+&lt;p&gt;这也是非常非常的简化&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&quot;language-xml&quot;&gt;
+&amp;lt;bean id=&quot;flyway&quot; class=&quot;org.flywaydb.core.Flyway&quot; depends-on=&quot;dataSource_flyway&quot; lazy-init=&quot;false&quot;&amp;gt;
+    &amp;lt;property name=&quot;dataSource&quot; ref=&quot;dataSource_flyway&quot;/&amp;gt;
+&amp;lt;/bean&amp;gt;
+
+&amp;lt;bean id=&quot;jFlyway&quot; class=&quot;net.kkuang.flyway.DbMigration&quot; lazy-init=&quot;false&quot; depends-on=&quot;flyway&quot;&amp;gt;
+    &amp;lt;property name=&quot;flyway&quot; ref=&quot;flyway&quot;/&amp;gt;
+&amp;lt;/bean&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code class=&quot;language-java&quot;&gt;/**
+ * 执行DbMigration
+ * 当应用服务启动时会自动执行
+ *
+ * User: 闷骚乔巴
+ * Date: 2014-12-02
+ */
+public class DbMigration {
+
+    private Log log = LogFactory.getLog(DbMigration.class);
+
+    private Flyway flyway;
+
+    @PostConstruct
+    public void run() {
+        log.info(&quot;[Start] DbMigration run .. &quot;);
+
+        flyway.migrate();
+
+        log.info(&quot;[End] DbMigration run .. &quot;);
+    }
+
+    public void setFlyway(Flyway flyway) {
+        this.flyway = flyway;
+    }
+
+}
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&quot;sql-script-&quot;&gt;SQL Script 命名&lt;/h2&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://kuang.io/images/migrate_naming_1.png&quot; alt=&quot;image&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;script-&quot;&gt;script 目录&lt;/h3&gt;
+&lt;p&gt;flyway执行时，默认读取的目录是&lt;code&gt;classpath:/db/migration&lt;/code&gt;  &lt;br /&gt;
+我们项目中就放在&lt;code&gt;/resource/db/migration&lt;/code&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;section-1&quot;&gt;文件名&lt;/h3&gt;
+&lt;p&gt;&lt;img src=&quot;http://kuang.io/images/SqlMigrationNaming.png&quot; alt=&quot;image&quot; /&gt;  &lt;br /&gt;
+该文件名由：   &lt;br /&gt;
+* prefix: default: V (大写哦)  &lt;br /&gt;
+* version: 版本号，也可以使用大小版本组合的方式，小版本号用单&lt;code&gt;_&lt;/code&gt;区分   &lt;br /&gt;
+* separator: 分隔符，双下划线&lt;code&gt;__&lt;/code&gt;    &lt;br /&gt;
+* description: 描述（你懂得，必须要有意义）   &lt;br /&gt;
+* suffix: 后缀 default: &lt;code&gt;.sql&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;再也不用担心，各环境的数据库不一致了。&lt;/strong&gt;&lt;/p&gt;
+</content>
+ </entry>
+ 
+ <entry>
+   <title>大道当然——武汉垃圾场事件</title>
+   <link href="http://kuang.io/wangshi-wuhan-laji"/>
+   <updated>2015-01-08T00:00:00+08:00</updated>
+   <id>http://kuang.io/wangshi-wuhan-laji</id>
+   <content type="html">&lt;p&gt;看《大道当然》这本书，读到这篇文章，挺受刺激，感动的。真正为客户着想去改善。  &lt;br /&gt;
+“客户第一”我们虽会一直唱在口边，但真正要去这么思考和行动，还是有不少距离。&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;p&gt;2001年4月，万科与武汉市东湖区政府签订协议，拿到四季花城地块。地块附近还有一个垃圾场，规划最近距离800米，最远为1100米。协议明确规定：垃圾场会在我们买下地之后2-3年内关闭，随后进行覆盖、绿化。&lt;br /&gt;
+项目施工阶段，苍蝇和臭味就已经困扰工人们。但武汉万科认为，垃圾场在红线两公里之外，苍蝇和味道又只有夏天才有；加上这个垃圾场早已存在，武汉市民都知道，既然是都知道的，就是默认接受的，“问题不大”。再说，反正入住以后垃圾场很快就会被关闭，熬也熬得过去。&lt;/p&gt;
+
+&lt;p&gt;2002年初，项目销售。6月，部分业主开始关注垃圾场问题并在“万科论坛”上公开讨论。2003年夏天，项目交付。此时垃圾场违规扩建，加上夏季吹东南风，焚烧垃圾的气味严重影响已入住业主的生活。万科员工反复解释：政府已经承诺要关闭垃圾场。业主抗议一阵之后，不闹了。他们也觉得搬迁垃圾场是有希望的。&lt;/p&gt;
+
+&lt;p&gt;2004年4月，业主间流传出一个消息：现在政府找不到新的垃圾填埋场地址，如果关了这个填埋场，政府没有其他地方可选择。另外政府想利用这块地建一个垃圾中转站，把武汉的生活垃圾运到这儿来压缩，再装车运到更远的地方去。而垃圾中转站的使用寿命是30年。&lt;/p&gt;
+
+&lt;p&gt;大规模群诉爆发了。&lt;/p&gt;
+
+&lt;p&gt;就在此时，我要去武汉大学演讲。业主得知消息后，要来演讲现场“找王石要说法”。武汉公司很紧张，建议我回避。我回答：“为什么要回避？到了武大演讲现场，我还能回避吗？”&lt;/p&gt;
+
+&lt;p&gt;赶去演讲途中，车被四季花城业主拦住了。我表示，武大演讲结束后，会专门去跟大家见面。业主表示不为难万科董事长演讲，但演讲一结束，抗议将立刻开始，并且要求必须到四季花城对话。&lt;/p&gt;
+
+&lt;p&gt;武汉万科总经理陪我前往武大。临近会场，看到站着一些穿蓝裤子白衬衫的小伙子。我问：“这是万科社区的保安员吗？”武汉万科总经理回答：不知道。&lt;/p&gt;
+
+&lt;p&gt;我说：“真不知道就好，但如果这些小伙子是咱们的保安员，那你犯了两个错误。第一，派保安员犯了一个错误，道理很简单，业主们是想制造压力，而不是来揍我的。维持秩序的保安员一旦与业主发生肢体冲突，反而是在制造负面新闻。第二个错误，你还撒了谎。”&lt;/p&gt;
+
+&lt;p&gt;几分钟后，我看到小伙子们撤走了。&lt;/p&gt;
+
+&lt;p&gt;讲演中忐忑不安，就连同学们半途去上厕所回来，我都以为是业主进来了。我做好了业主冲击现场的准备，但是他们没有这么做，这令我感动。我决定改变行程，第二天去四季花城主动见投诉业主。&lt;/p&gt;
+
+&lt;p&gt;见面地点在社区活动中心二楼。业主代表有四五十人，有打着白旗的，有头上扎白布条的。我一到，他们就高喊打倒武汉万科总经理。我有点纳闷，应该打倒王石才对，怎么是打倒武汉万科总经理呢？业主七嘴八舌开始投诉，我明白了，武汉没有处理群诉的经验，一直在回避。【1】&lt;/p&gt;
+
+&lt;p&gt;当时正是台湾地区领导人选举期间，电视台天天有转播。我看业主扎白布条，开玩笑说：“你是蓝党还是绿党？“大家笑了，现场敌对气氛缓和了。&lt;/p&gt;
+
+&lt;p&gt;沟通中，有位怀孕女士的发言让我震惊。她说，小区不仅可以闻到垃圾场臭味，拾荒者烧一些废铜线的线皮，这会产生致癌二噁英，要求休会，让我到垃圾现场亲身体验。&lt;/p&gt;
+
+&lt;p&gt;垃圾场恶臭。换位业主的角度，感到心情沉重，下决心，即使承受很大代价也要解决垃圾场对业主的困扰。再同业主会面，我表态：“对此事万科有责任，我们应该与业主共同面对，必要时给予赔偿。但今天不会有结果，业主信任我，我一个月后再来跟大家见面，评估万科的行动能否见效，如何？”业主们同意万科董事长离开，离开前，热情邀请我合影。&lt;/p&gt;
+
+&lt;p&gt;垃圾场事件如何解决？确实棘手。同万科的团队讨论解决方案时，我亮了一个极端方案：实在不行，允许业主退房。按照此方案，预计损失至少7000万，最多可能上升到1.3亿，不确定的是如何补偿业主的装修部分。团队明白了董事长不惜一切代价解决此事的底线，反而放下了心理包袱，多方寻找解决方案。&lt;/p&gt;
+
+&lt;p&gt;5月，分管客户关系的解冻代表总部抵达武汉，负责前线指挥，落实：免费为业主安装纱窗、提供空气清洁器；协助政府积极寻找新的垃圾填埋场；与当地媒体充分沟通，以开放心态增加透明度。&lt;/p&gt;
+
+&lt;p&gt;在武汉的第一个星期，解冻瘦了5公斤。&lt;/p&gt;
+
+&lt;p&gt;一个月后，我再次来到武汉，拜会市长。谈及垃圾场搬迁事宜。坐下来，还没来得及张口，李市长先吐槽了：“武汉作为一个特大型城市，现在苦于为殡仪馆找地方，每天这个城市死多少人啊？殡仪馆不够用。但是把殡仪馆建在哪里，哪里都反对。”市长把我要谈的话给挡了回来。&lt;/p&gt;
+
+&lt;p&gt;如何见业主呢？武汉万科副总经理张旭拉上客户关系中心的段世忠，跑到垃圾场蹲点。没想到，这一蹲，竟看出点端倪来。&lt;/p&gt;
+
+&lt;p&gt;这个垃圾场是由世界卫生组织资助的，当初的设计标准很好，有详细的操作规范：倒一车垃圾，立马覆盖一层泥土。覆土不仅能把臭味压住，还造出一种无氧的环境，就不会发臭了。可现状是什么呢？为了节省成本，垃圾倒完不覆盖，敞开一天，甚至几天都不覆盖。垃圾在武汉的高温炎热下腐败，招来蚊蝇，加重了污染。&lt;/p&gt;
+
+&lt;p&gt;因为垃圾场敞着，进而有许多拾荒者进来翻捡，垃圾与空气充分接触，臭味更加浓烈、散发。拾荒者捡电线的收入最高，捡到电线后在垃圾场外烧电线皮，燃烧产生二噁英，连同垃圾的气味一起飘散。&lt;/p&gt;
+
+&lt;p&gt;可行的方案是：万科接管垃圾场，我们买泥土，负责现场覆盖。同时，给予拾荒者一定补偿。&lt;/p&gt;
+
+&lt;p&gt;几个月来，第一次看到解决问题的曙光。&lt;/p&gt;
+
+&lt;p&gt;万科做通拾荒者头头儿的工作，要求他帮我们管住下面的人。有一次，这个头头儿的哥哥非要去捡垃圾，哥俩打了一架，从此以后，再没有人去翻捡垃圾。问题解决了。【2】&lt;/p&gt;
+
+&lt;p&gt;垃圾场问题尘埃落定，客户却没有停止行动：“王石答应我们的5台空调和5台空气清新机呢？王石不还要再来见我们一次吗？”&lt;/p&gt;
+
+&lt;p&gt;公司的颜雪明律师起草了一封信，大意是：“作为上市公司的董事长，我既要照顾业主的利益，也不能违背股东的利益。”意思是，现在问题解决了，就不用再补偿空调和空气清新机了。同事们也不同意我再去见业主，但我想既然答应过要见，他们也还惦记着，那当然要见。&lt;/p&gt;
+
+&lt;p&gt;飞到武汉天河机场，是中午时分，座谈会下午3点开，中间有一段午饭时间。武汉公司的车载着我在街上转了好半天，来到常青花园小区里的一个餐馆。餐馆很“特别”，大门背对着马路，朝着小区里开。&lt;/p&gt;
+
+&lt;p&gt;坐下来，我问：“王石是不是已经不能再武汉大街上吃饭了？”&lt;/p&gt;
+
+&lt;p&gt;同事们一愣。&lt;/p&gt;
+
+&lt;p&gt;第一，王石没做什么不对的事情；第二，万科没有做什么见不得人的事。一个项目发展过程中碰到问题，我们必须和客户共同面对，共同寻找解决办法，怎么至于连吃饭都要找一个门朝里开的地方？&lt;/p&gt;
+
+&lt;p&gt;“还是换个地方吃饭吧！”&lt;/p&gt;
+
+&lt;p&gt;下午3点，准时与客户座谈。将近会议结束时间，一位同事提醒：“各位业主，王总马上还有另外的安排，我们会议就到此……”我立刻插话说：“我专门赶过来听取大家意见，大家表达的意见我都已经听清楚了，并指派解冻代表我全权处理这些事情。如果你们除了刚才所谈的之外，还有其他要补充的，尽管说出来。我晚上确实还有安排，但如果你们觉得还没说清楚，还需要我留下来继续说的，我也可以留下来。”&lt;/p&gt;
+
+&lt;p&gt;业主没有再说什么。&lt;/p&gt;
+
+&lt;p&gt;“现在，我可以去吃晚饭了吗？”&lt;/p&gt;
+
+&lt;p&gt;第二年，政府为垃圾场找到了新址，四季花城旁的金口垃圾场也就此关闭了。那年6月30日，四季花城二、三期交付的当天，场内所有垃圾全部覆盖完毕。武汉万科同事和约70名业主在上面种植了5亩“万科林”。现在那里已经面貌一新，垃圾场的记忆渐渐被人们淡忘。&lt;/p&gt;
+
+&lt;p&gt;武汉垃圾场事件给万科带来了一个全新的文化和制度：红线外不利因素提示。在销售产品时，必须向客户提示项目范围内所有不利因素，以及项目红线外1公里内所有不利因素。今天，走在万科每一个销售现场，都能清晰看到这份文字提示，销售人员也会口头知会客户这些信息。&lt;br /&gt;
+在一个组织中，正是深植于每个成员的文化意识构成了企业发展的内在动力。我们1%的失误，对于客户而言，就是100%的损失，衡量我们成功与否的最重要的标准，就是我们让客户满意的程度。这一点，我坚信不疑。&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;p&gt;【1】武汉公司作为新公司，面对经营压力和周边环境的不利因素，本能地选择趋利避害，自觉不自觉地回避垃圾场信息，怀有侥幸心理，一方面认为属于红线外问题，相信政府会履行承诺按期关闭；另一方面，由于客户入住率不高，投诉声音不是很大，对垃圾场事件发展趋势没有充分估计到。&lt;/p&gt;
+
+&lt;p&gt;投诉出现后，销售现场还没有明示垃圾场的任何相关信息，销售人员对垃圾场问题也没有主动告知——这也成为后期客户就垃圾场事实知情权问题群诉的焦点之一。&lt;/p&gt;
+
+&lt;p&gt;新垃圾场选址的工作也一直未成定论，垃圾场的扩容更增加了客户的担忧和不满。随着一期业主入住增多，二期A区业主办理交付，投诉量在一段时间内开始增多。在这种情况下，武汉公司对潜在的危机认识不足，对政府部门的扩建行为以及垃圾场运行过程中给业主居住造成的影响没有进行监测、评估和分析。正是由于在与业主的沟通中公司仍被动地应对投诉，武汉公司没有主动建立良好的沟通平台。客户对政府的不信任和对武汉公司的积怨由此产生。&lt;/p&gt;
+
+&lt;p&gt;【2】 这个事件后，万科客服系统总结出一句话：“待在空调房里不可能找到解决问题的方法，到现场去才能。”段世忠在垃圾场蹲点了一个夏天。据说，司机大哥都不愿意靠近垃圾场，去一次车里一个星期都有臭味；每去一次现场，衣服能臭一个星期，所以离开后必须赶紧换洗。但是段世忠在这里足足待了几个月。&lt;/p&gt;
+
+&lt;p&gt;年龄偏大、学历不高的段世忠，现在已经成为武汉万科客户关系中心的负责人。他不仅能吃苦，还肯动脑筋，自己琢磨发明了一套维修工作法，“段世忠维修工作法”是万科集团至今为止唯一一个以人名命名的工作流程。&lt;/p&gt;
+</content>
+ </entry>
+ 
+ <entry>
+   <title>从新手到专家的历程——德雷福斯模型</title>
+   <link href="http://kuang.io/from-novice-to-expert-dreyfus"/>
+   <updated>2013-10-02T00:00:00+08:00</updated>
+   <id>http://kuang.io/from-novice-to-expert-dreyfus</id>
+   <content type="html">&lt;p&gt;德雷福斯兄弟考察了行业技术能手，包括商用客机飞行员和世界著名国际象棋大师。他们的研究表明，从新手到专家要经历巨大的变化。总共要经历5个阶段：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;新手&lt;/li&gt;
+  &lt;li&gt;高级新手&lt;/li&gt;
+  &lt;li&gt;胜任者&lt;/li&gt;
+  &lt;li&gt;精通者&lt;/li&gt;
+  &lt;li&gt;专家&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;section&quot;&gt;阶段1：新手&lt;/h2&gt;
+
+&lt;p&gt;由定义可知，新手在该技能领域经验很少或者根本没有经验。这里提到的经验，指的是通过实施这项技术促进了思维的改变。举个反例，可能一个开发人员拥有十年的经验，但实际上只是一年的经验重复了九次，那么就不算是经验。&lt;/p&gt;
+
+&lt;p&gt;新手非常在乎他们能否成功。没有太多经验指导他们，他们不知道自己的行为是对是错。新手不是特别想要学习，他们只是想实现一个立竿见影的目标。他们不知道如何应付错误，所以出错的时候，他们容易慌乱。&lt;/p&gt;
+
+&lt;p&gt;但是，如果新手提供与情境无关的规则去参照，他们就会变得能干起来。&lt;strong&gt;也就是说，需要这种形式的规则：“当X发生时，执行Y。”换言之，需要一份指令清单。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;section-1&quot;&gt;阶段2：高级新手&lt;/h2&gt;
+
+&lt;p&gt;一旦进过新手的历练，人们开始以高级新手的角度看待问题。高级新手能够开始多多少少地摆脱固定规则。他们可以独自尝试任务，但仍难以解决问题。&lt;/p&gt;
+
+&lt;p&gt;他们想要快速获取信息。例如，当学习一门新语言或API时，你可能会感觉到这点，你发现自己会快速浏览文档以v寻找一个方法定义或参数列表。你不想在此刻寻根究底，或者重新温习一遍基础知识。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;高级新手能够根据过去的经验，逐步在正确的情境中采纳建议，但比较吃力。同时，他们能够开始形成一些总体原则，但不是“全貌”。&lt;/strong&gt;他们没有全面的理解，而且的确不想有。如果你试图把一个更大的情境加强给高级新手，他们可能会认为情境与那些原则不相关而忽略掉。&lt;/p&gt;
+
+&lt;p&gt;当公司CEO举行全体会议并展示销售数据或预测图时，你可能会看到这样的反应。许多在这方面经验较少的员工对这些不加理会，以为这与他们的工作不相关。&lt;/p&gt;
+
+&lt;p&gt;当然，其实这是非常相关的，它可以帮助你判断明年你在这家公司是否还能继续干下去。但是，你看不到这种联系，因为你的层次还不够，只处于较低的技能水平。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;高级新手不想要全局思维&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;section-2&quot;&gt;阶段3：胜任者&lt;/h2&gt;
+
+&lt;p&gt;胜任者，从业者现在能够建立问题域的概念模型，并有效地使用它们。他们可以独立解决自己遇到的问题，并开始考虑如何解决新的问题——那些他们之前没有遇到的问题。&lt;/p&gt;
+
+&lt;p&gt;与更高水平追随下意识反应不同，胜任者会探寻和解决问题，他们的工作更多是基于谨慎的计划和过去的经验。如果没有更多的经验，在解决问题时，他们将难以确定关注哪些细节。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;胜任者能够解决问题&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;在软件开发领域，我们达到了这个水平，但是即使在这一水平，人们仍然无法按照我们希望的方式来应用敏捷方法——大家还没有足够的能力反思和自我纠正。为此，我们需要取得突破，达到一个新的水平：精通&lt;/p&gt;
+
+&lt;h2 id=&quot;section-3&quot;&gt;阶段4：精通&lt;/h2&gt;
+
+&lt;p&gt;精通者，精通水平的从业者需要全局思维。他们将围绕这个技术，寻找并想了解更大的概念框架。对于过于简化的信息，他们会非常沮丧。&lt;/p&gt;
+
+&lt;p&gt;处于精通水平的有一项重大突破：他们能够纠正以往不好的工作表现，他们会反思以前如何做的，并修改其做法，期待下次表现更好。到这个阶段，自我改进才会出现。&lt;/p&gt;
+
+&lt;p&gt;同时，他们会学习他人的经验，作为精通者，他能够阅读案例研究，倾听有关失败项目流言蜚语，观察别人怎么做的，从故事中认真学习，即使他没有亲自参与。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;精通者能自我纠正&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;精通者可以充分利用思考和反馈，这些都是敏捷方法的核心。&lt;/p&gt;
+
+&lt;h2 id=&quot;section-4&quot;&gt;阶段5：专家&lt;/h2&gt;
+
+&lt;p&gt;专家是各个领域知识和信息的主要来源。他们总是不断地寻找更好的方法和方式做事。他们有丰富的经验，可以在恰当的情境中选取和应用这些经验。&lt;/p&gt;
+
+&lt;p&gt;根据统计，专家的数量很少，大概占总人数的 1% - 5%&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;专家根据直觉工作，而不需要理由。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;成就专家需要十年。一旦你成了某领域的专家，在别的领域成为专家就会变得更容易。至少你已经有了现在的获取知识的技能和模型构建的能力。&lt;/p&gt;
+
+</content>
+ </entry>
+ 
+ <entry>
+   <title>linux命令行快捷键</title>
+   <link href="http://kuang.io/linux-command-line-shortcuts"/>
+   <updated>2013-09-30T00:00:00+08:00</updated>
+   <id>http://kuang.io/linux-command-line-shortcuts</id>
+   <content type="html">&lt;p&gt;收集一些在使用liunx命令行时的快捷键，提高下操作的流畅性。&lt;/p&gt;
+
+&lt;h2 id=&quot;section&quot;&gt;搜索操作快捷键&lt;/h2&gt;
+
+&lt;p&gt;搜索历史命令的快捷键：&lt;code&gt;Ctrl + r&lt;/code&gt;  &lt;br /&gt;
+它是通过关键字去匹配历史记录，执行后会提示：(reverse-i-search)`’:&lt;/p&gt;
+
+&lt;p&gt;输入你记得的关键字去匹配，如果出现你需要的命令，按Enter就可以选择命令；如果不是请输入更精确的关键字去匹配。&lt;/p&gt;
+
+&lt;h2 id=&quot;section-1&quot;&gt;移动操作快捷键&lt;/h2&gt;
+
+&lt;p&gt;&lt;code&gt;Ctrl + f &lt;/code&gt; – 向右移动一个字符，当然多数人用 →  &lt;br /&gt;
+&lt;code&gt;Ctrl + b&lt;/code&gt;  – 向左移动一个字符， 多数人用 ←  &lt;br /&gt;
+&lt;code&gt;ESC  + f&lt;/code&gt;   – 向右移动一个单词，MAC下建议用 ALT + →   &lt;br /&gt;
+&lt;code&gt;ESC  + b&lt;/code&gt;   – 向左移动一个单词，MAC下建议用 ALT + ←  &lt;br /&gt;
+&lt;code&gt;Ctrl + a&lt;/code&gt;  – 跳到行首  &lt;br /&gt;
+&lt;code&gt;Ctrl + e&lt;/code&gt;  – 跳到行尾&lt;/p&gt;
+
+&lt;h2 id=&quot;section-2&quot;&gt;删除操作快捷键&lt;/h2&gt;
+
+&lt;p&gt;&lt;code&gt;Ctrl + d&lt;/code&gt;  – 向右删除一个字符  &lt;br /&gt;
+&lt;code&gt;Ctrl + h&lt;/code&gt;  – 向左删除一个字符  &lt;br /&gt;
+&lt;code&gt;Ctrl + u&lt;/code&gt;  – 删除当前位置字符至行首（输入密码错误的时候多用下这个）  &lt;br /&gt;
+&lt;code&gt;Ctrl + k&lt;/code&gt;  – 删除当前位置字符至行尾  &lt;br /&gt;
+&lt;code&gt;Ctrl + w&lt;/code&gt;  – 删除从光标到当前单词开头&lt;/p&gt;
+
+&lt;h2 id=&quot;section-3&quot;&gt;命令切换操作快捷键&lt;/h2&gt;
+
+&lt;p&gt;&lt;code&gt;Ctrl + p&lt;/code&gt;  – 上一个命令，也可以用 ↑&lt;br /&gt;
+&lt;code&gt;Ctrl + n&lt;/code&gt;  – 下一个命令，也可以用 ↓&lt;/p&gt;
+
+&lt;h2 id=&quot;section-4&quot;&gt;其他操作快捷键&lt;/h2&gt;
+
+&lt;p&gt;&lt;code&gt;Ctrl + y&lt;/code&gt;  – 插入最近删除的单词  &lt;br /&gt;
+&lt;code&gt;Ctrl + c&lt;/code&gt;  – 终止操作  &lt;br /&gt;
+&lt;code&gt;Ctrl + d&lt;/code&gt;  – 当前操作转到后台  &lt;br /&gt;
+&lt;code&gt;Ctrl + l&lt;/code&gt;  – 清屏 （有时候为了好看）&lt;/p&gt;
+</content>
+ </entry>
+ 
+ <entry>
+   <title>养成写总结的习惯</title>
+   <link href="http://kuang.io/write-a-summary-of-the-habit"/>
+   <updated>2013-05-21T00:00:00+08:00</updated>
+   <id>http://kuang.io/write-a-summary-of-the-habit</id>
+   <content type="html">&lt;p&gt;经常写总结是一件非常辛苦的事情，特别在每天劳累后。但却收获很大，值得投入和坚持去做。当取得成就（尝到甜头）后，就更容易坚持。而往往到达这步前就死掉了。&lt;/p&gt;
+
+&lt;p&gt;各大伟人都强调总结的重要性。德鲁克在做时间管理开篇提到，首先要有记录。林正刚提到，记录下来的知识比在脑子回想要深刻得多。我们老大经常鼓励大家做记录，因为记忆有效期二个星期，先前的事情就会被淡忘，经验不被积累，并且回顾时也忘记当时的现场，从而效果大打折扣。&lt;/p&gt;
+
+&lt;p&gt;好处太多了，但坚持这种习惯的没几个。&lt;/p&gt;
+
+&lt;p&gt;我从中得到的益处，将更多的理念通过工作中经历形成记录，加深对其内化。同时描述现场信息，在后期回顾时，非常容易的清楚当时的情景。其实大部分情况都不需要去主动回顾，因为我们在记录时，已经将事情的一个个画面印在脑子中了，随时可以回放。&lt;/p&gt;
+
+&lt;p&gt;我们经常会出现看某本书时，引起很强烈的共鸣，觉得作者说得对，要去学习。但往往我们做事时却又做不到，事后诸葛亮的特多。这时总结就体现作用，加深对其理解。作用于后述的工作中，自我感觉一些理念内化需要经历2-3次。&lt;/p&gt;
+
+&lt;p&gt;另外，可以培养观察事情的敏感度。在《思考的艺术》中，作者提到他经常性的在思考，观察事物，锻炼思考的敏锐度和发散思维。通过总结，就是锻炼对事情的深入思考，观察身边的人和物，从中学习。久而这种敏感度也有不少提高。&lt;/p&gt;
+
+&lt;h2 id=&quot;section&quot;&gt;那么我们怎么做？&lt;/h2&gt;
+
+&lt;p&gt;&lt;strong&gt;1.用我们老板的话描述，因为看见所以相信。我坚信坚持记录对我有好处&lt;/strong&gt;  &lt;br /&gt;
+就这么简单，不想多了，就这么傻傻的去做。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;2.从简单的开始（做产品的理念也是这样），上述别想多了。不管文笔，述事的完整性，工具等等&lt;/strong&gt;   &lt;br /&gt;
+只管将脑中的想法口水账的描述出来，已经很不错了。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;3.不要带目的性&lt;/strong&gt;   &lt;br /&gt;
+我要分享给某某，我要让自己从中收获。也不符合第2点，对自己的要求太多太高了。这样就会产生压力，从而迟迟不能下笔，事情就黄了。&lt;/p&gt;
+
+&lt;p&gt;曾经听王总讲一个故事：给小孩读完故事，你们会提问吗？例如，从中学到了什么，体会到什么呀？我第一反应该会问吧。其实对于小孩，不要经常性的去提问。容易让孩子产生，只要听故事一定要回答问题的压力，从而对此兴趣降低。类比，我们在陌生的领域，都因像对待小孩一样呵护自己的内心。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;4.回到第1点。我们都是会思考的人，我们会不断完善，持续优化&lt;/strong&gt;  &lt;br /&gt;
+先前自我把门堪降至最低吧，那么后续会越记录越流畅，越高效，最后就是种习惯了。&lt;/p&gt;
+
+&lt;h2 id=&quot;section-1&quot;&gt;实践技巧&lt;/h2&gt;
+&lt;p&gt;开篇时说得废话太多了，我们再来理理。我们遵循持续优化的方法。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;1. 别想太多&lt;/strong&gt;  &lt;br /&gt;
+我们很容易找理由，局限在工具中，还是先迈出来吧。&lt;br /&gt;
+例如：工作太忙每天太累，那还有精力写这玩意儿；我这破手机，写起来麻烦，屏幕也小不习惯；每天地铁太挤，没法操作；我想不用去一一论述上述想法。我们总会有N种理由说服我们不去做，这种惰性思维是挺可怕的（也很难迈出这一步）。林正刚说：“人的性格不易改变，但理念和做事方法是可以改变的”。我们需要更多给我们思维已正向的引导，提供正能量。&lt;/p&gt;
+
+&lt;p&gt;我们可以摘抄书中引起共鸣的想法，然后用工作中的案例简单补充（这样写起来会简单）。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;2. 及时记录&lt;/strong&gt;  &lt;br /&gt;
+不要给自己太多压力和要求，有感想时先及时记录下来吧。从我的经历中，发现如当天不记录的，即使，打了todo，写了标题，以后也不会去补上了，绝绝大部门就是这样了（中间也有想去动几次笔，但最后，你懂的）。&lt;/p&gt;
+
+&lt;p&gt;特别补充下，我们会说，我们做的事情不复杂，接触面也不多。没有那么多感想。这个看起来，多么有说服力的“理由”呀。&lt;/p&gt;
+
+&lt;p&gt;“借脑成专家”，对自己有要求，期待成长的。会留意到自己及身边人和物。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;3. 记录现场&lt;/strong&gt;  &lt;br /&gt;
+将经历的事情上下文都描述，当时的状态。自己的最初的想法，思考的过程，后续的感想等等。如果只是概括性的总结，后期回顾时，自个儿都不清楚当初为什么傻傻的想到这些。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;4. 写好标题&lt;/strong&gt;  &lt;br /&gt;
+算是为记录设定一个目标，围绕这个中心展开。同时在回顾时，快速的回想。&lt;/p&gt;
+
+&lt;p&gt;最后，&lt;br /&gt;
+我是从2012年10月份开始去尝试每天进行记录的，到现在总共73篇。有长有短，长的有2-3K字。大部分是在上下班地铁上写的（没写完回家继续，这篇就在今天上班时地铁上写的）。&lt;/p&gt;
+
+&lt;hr /&gt;
+&lt;p&gt;附，一篇随意写的总结（2013.05.22）&lt;/p&gt;
+
+&lt;h2 id=&quot;section-2&quot;&gt;做好听众&lt;/h2&gt;
+
+&lt;p&gt;昨天黎叔找我聊，关于前后端开发配合的问题。&lt;/p&gt;
+
+&lt;p&gt;当他刚开始说明来意时，我就马上表示这是个大问题，心想这可能需要漫长的改进周期，再而将自己的理念跟他沟通起来。&lt;/p&gt;
+
+&lt;p&gt;说，首先要明确我们最终的期待，场景。实施过程，要全权跟踪和负责等等。而未仔细去倾听他的想法和描述。其实叔对这个问题已经思考很久了，也有不少的想法。&lt;/p&gt;
+
+&lt;p&gt;我在沟通中更应该是去仔细倾听叔的想法及理解。而后可以分享我的建议等等。&lt;/p&gt;
+
+&lt;p&gt;一方面，我思考的不深入，表达的观念就是错误的，误导呀。&lt;br /&gt;
+再次，叔已经想得透切的了，我所想到的问题，人家都已经思考过了。而自己却在这瞎扯，会给人很不爽的感觉。&lt;/p&gt;
+
+&lt;p&gt;其实在沟通中间，我已经意识到上述问题了，中途有注意去倾听。说明还欠点火候，继续加强锻炼。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;学会倾听是一种很好的习惯。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;section-3&quot;&gt;以产品的心态对待问题&lt;/h2&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;“有这么一群人，他们对产品有一种本能的热爱，把自己生活中的一切事物都看成产品，怀揣对优秀的产品的热爱和尊重。他们夜以继日克服困难，抱着无比的热情完善产品”。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;《启示录》上的一断话。&lt;/p&gt;
+
+&lt;p&gt;深入想想，先不扯到生活，工作中的问题，都可以用产品的心态去对待。&lt;/p&gt;
+
+&lt;p&gt;持续优化、追求卓越，一直认为是产品经理最基本的素质。  &lt;br /&gt;
+(未完待续)&lt;/p&gt;
+
+</content>
+ </entry>
+ 
+ <entry>
+   <title>自主指导型团队特征</title>
+   <link href="http://kuang.io/self-guide-team-management"/>
+   <updated>2013-04-14T00:00:00+08:00</updated>
+   <id>http://kuang.io/self-guide-team-management</id>
+   <content type="html">&lt;p&gt;在《软件管理沉思录》中，作者开篇就提到：&lt;br /&gt;
+&lt;strong&gt;人人都想拥有一支富有进取精神和活力的团队&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;section&quot;&gt;自主指导型团队的典型行为有哪些？&lt;/h2&gt;
+&lt;p&gt;团队成员会主动发现需要做什么并及时去做，而不用人告诉要做什么，为了能完成工作任务他们会去做任何需要做的事。对于工作，他们勇于承担，并决心把它做好。这就是为什么自主指导型团队凝聚在一起把工作做完，通常自主指导型团队的员工流失率为零。&lt;/p&gt;
+
+&lt;p&gt;我在先前带团队时，做项目中，每个人都会跟产品经理为了产品目标激励讨论，甚至经常出现技术员提出更好的方案，推翻产品经理原有的构想。也会推翻交互设计等等。在为提高工作的效率或达到产品的目标，大家会也充分利用业余时间研究一些技术点（例如怎么自动化，怎么解决某个技术难点等等）。在项目进展遇到问题时，周末也会在家投入其中。&lt;/p&gt;
+
+&lt;p&gt;虽然一支自主指导型团队对于任何类型的工作都是有效的，但这种团队对于完成复杂、创新性的工作显得尤其重要，不可或缺。这种类型的工作需要所有成员的全心投入。如果团队成员不能以工作为己任，或不能就团队的目标达成一致，他们就不可能努力去高标准地完成任务。高质量的工作不可能误打误撞地完成，它必须通过富有思想、责任心和动力的人来完成。自主指导型团队具备一些其他团队所没有的特别品质。&lt;/p&gt;
+
+&lt;p&gt;以下5条就是自主指导型团队的典型特征：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;具有团队感和归属感&lt;/li&gt;
+  &lt;li&gt;共同对团队目标作出承诺&lt;/li&gt;
+  &lt;li&gt;对过程和计划的主人翁意识&lt;/li&gt;
+  &lt;li&gt;具有制订计划的技巧和执行计划的纪律&lt;/li&gt;
+  &lt;li&gt;追求卓越&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;这类团队通常自己设计开发策略、制订计划，并且主动去完成高质量的工作。&lt;/p&gt;
+
+&lt;h2 id=&quot;section-1&quot;&gt;有凝聚力的独特群体&lt;/h2&gt;
+&lt;p&gt;自主指导型团队的成员处于一个有凝聚力的独特群体当中，不存在谁在或者谁不在团队内的问题。所有成员之间具有共同纽带，他们之间似乎存在一种特殊的交流媒介。团队成员之间非常熟悉，他们对工作也非常了解，几乎可以用缩短语来交流。自主型团队给人印象最深刻的地方是团队成员在一起工作的方式。合作是团队合作的精髓，也是建立信任和团队精神的关键。自主指导型团队是紧密联系、有凝聚力的群体，团队成员之间也许不都是亲密的朋友，但他们都是相互认可的合作者。&lt;/p&gt;
+
+&lt;p&gt;凝聚力是把团队成员紧密联系在一起的纽带，而要想形成凝聚力就需要接触和密切交往。团队成员能够经常见到彼此，能坦诚的交流。你不可能制定制度来产生凝聚力，它是团队合作的自然产物。&lt;strong&gt;凝聚力是一支自主指导型团队最基本的特征。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;彼此分享提供帮助，发自内心的一起去讨论和改善，彼此见证的成长。团队的凝聚力更会得到加强。团队提供了一种舒适的人际环境，而且它也是成员之间相互约束、支持和激励的源泉。在这类团队中，所有成员都会格外努力，履行他们对自己伙伴的承诺。&lt;/p&gt;
+
+&lt;h2 id=&quot;section-2&quot;&gt;共同对团队目标作出承诺&lt;/h2&gt;
+&lt;p&gt;自主指导型团队共同对团队目标作出承诺。虽然目标对组织来说非常重要，但对你来说，目标最主要的价值在于它是团队的焦点所在。团队成员的积极性来自于他们共同作出的承诺，一旦决定要去实现这个目标，他们将尽自己最大的可能去成功地完成化。&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;恐惧、贪婪和承诺是最重要的三条激励因素&lt;/p&gt;
+
+  &lt;p&gt;作为一名团队领导，可以利用恐惧来推动工作（如不完成，你将会被解雇），它确实可以引发对方的反应，不过这种反应通常不会是你所想要的。因为恐惧常常引发考虑不周的反应，而不是深思熟虑的创新性活动。更常常会导致自卫性甚至失去理智的行为，给整个团队带来伤害。而且即使被解雇了，对方仍能找到份不错的工作。&lt;/p&gt;
+
+  &lt;p&gt;以酬劳为基础的激励带来了一个很大的问题，会使成员把目标从工作成绩转移到酬劳上，它用贪婪代替了自我实现。在这种情况下，人们会尽可能把他们的预期酬劳最大化，同时将需要付出的努力最小化。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;为了维持这种承诺，团队必须从其工作中得到反馈。有谁听说过一支不知道比分的球队却赢得了比赛？要想获得主动，项目团队必须知道什么时候他们是超前的，什么时候他们却落后了。他们还要每天都能看到进展情况。只有这样，团体才能不断地向他们的目标推进。并且通过不断的反馈，保持信息的沟通，团队不断暴露的问题会不断的优化，越发有战斗力。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;为了让个人或者团体有更好的表现，反馈是唯一最重要的因素。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;section-3&quot;&gt;强烈的主人翁意识&lt;/h2&gt;
+&lt;p&gt;自主指导型团队的另一个特点是主人翁意识。对团队成员来说，这不仅仅是项目团队正在做的任务，这是他们的任务。团队成员对工作有一种责任感，并且已经决定如何去完成它。这类团队在谈及他们的工作时有一种特别的自豪。要想让大家具有这种主人翁意识，所有团队成员都必须参与到定义自己的工作过程、制订自己的计划以及追踪和报告自己的工作等行为中去。并且非常明确的清楚我们的价值是什么？我们为客户是谁？为他们解决了什么问题？更加促使发挥每个人的能力和想法，为我们的客户（目标）提供服务。这种责任感提供一种对个人重要性的感知和对自尊的感受。&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;在工作中，偶尔系统会经常出现一些问题。例如：产生了一些脏数据影响到客户的使用。我们在排查发现，由于其他系统相互影响出现的结果。对此，每位成员通常的做法是：立马将对方产品经理叫过来一起分析现状，讨论并提出解决方案，制定时间表。如果超出了对方产品经理的范围，把可能关系到的相关人员也同时叫过来（其他部门或者更高层），再进行讨论，直到该问题能得到解决。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;这就体现主人翁意识表现的强大的责任心，对结果负责的心态。&lt;/p&gt;
+
+&lt;p&gt;我们经常强调要对结果负责，但如缺少这份主人翁意识，缺少明白我们的目标客户及价值。很有可能将“结果”定义错误。&lt;/p&gt;
+
+&lt;p&gt;例如上述案例，我们可以只将问题反馈给相关人员（甚至不反馈，直到更高层发现协调解决，反正又不是我们系统的问题），但也不会去跟踪或者确定问题是否得到解决（我已经告知他们了）。但受其影响的，仍是自己。&lt;/p&gt;
+
+&lt;p&gt;同样很重要，当团队不确信要做什么，又不知道从何处获得指导和帮助时，它不可能是有凝聚力的团队，而仅仅是一个由一帮迷茫的、寻找前进方向的人组成的群体。这时各成员将根据各自的优先级自行其是，彼此间没有帮助。&lt;/p&gt;
+
+&lt;p&gt;自主指导型团队特别适合于进行创新性的开发工作。他们会自己定义工作的过程和计划，并制订纪律以遵循这些过程和计划。事实上，无论在什么专业领域，专家和业余爱好者之间的区别就是有没有纪律，正是愿意去排演、实践和不断提高，专家才成为专家。&lt;/p&gt;
+
+&lt;h2 id=&quot;section-4&quot;&gt;执着追求卓越&lt;/h2&gt;
+&lt;p&gt;自主指导型团队的最的一项特征是他们对卓越的执着追求。为了让团队团结一致地工作，维护其活力和积极性，所有成员都要努力工作以奉献出他的全部才能。这类团队所拥有的精神和活力依赖于所有人都能高质量地完成工作。&lt;/p&gt;
+
+&lt;p&gt;在德鲁克的理念里，最重要的就是“追求卓越”，不断的提出高要求。让其个人和团队都取得成就。&lt;/p&gt;
+
+&lt;p&gt;如果一个没有成就的团队里，上述一切都是空话，并且团队中的感情也会变质（可能出于对上级的唯从）。&lt;/p&gt;
+
+&lt;h2 id=&quot;section-5&quot;&gt;有效的领导&lt;/h2&gt;
+&lt;p&gt;虽然以上列出的五条特征——团队感、承诺、主人翁意识、纪律和追求卓越（至关重要），但并不够。&lt;/p&gt;
+
+&lt;p&gt;自主指导型团队最最重要的是要具备有效的领导。团队领导者必须要能激发、引导、督促和鼓励团队成员最大可能去完成工作。简而言之，你的团体的工作情况，更依赖于你的领导，这一点超过了其他任何因素。如果团队构建合理，进行了很好的培训，同时你又是一位有效的领导者，那么不管遇到什么挑战，这支团队的表现都会非常出色。但如果你不能有效地领导，你的团队将表现平平，甚至不能胜任工作。&lt;/p&gt;
+
+&lt;p&gt;上述描述看拟一项非常可怕的挑战，但其实这也没什么难的。   &lt;br /&gt;
+东风经常跟我们说：&lt;strong&gt;以身做则，无私心&lt;/strong&gt;  &lt;br /&gt;
+王总经常跟我们说：&lt;strong&gt;管理者的职责就是让团队成员取得成就&lt;/strong&gt;  &lt;br /&gt;
+当你知道如果去做时，它就不再困难了。满足自主型团队条件其实也不那么困难。所有的团队成为强凝聚力团队，只要给予适当的指导和支持，通常就能做到。&lt;/p&gt;
+
+</content>
+ </entry>
+ 
+ <entry>
+   <title>关于学习（自我救赎）</title>
+   <link href="http://kuang.io/about-learning-self-hard"/>
+   <updated>2013-04-09T00:00:00+08:00</updated>
+   <id>http://kuang.io/about-learning-self-hard</id>
+   <content type="html">&lt;p&gt;前段时间看WTP的一篇&lt;a href=&quot;https://github.com/lifesinger/lifesinger.github.com/issues/129&quot;&gt;《如何理解他人的工作》&lt;/a&gt;，作者引用陈浩的微博，表示不太赞同他的观念。而我相反，比较赞同陈浩的观点。陈浩微博说：&lt;br /&gt;
+&amp;gt; 我不要求别人，我有什么就学什么。Photoshop，摄影，平面设计什么的，有机会我就学。有时，学习并不仅仅为了掌握，只是为了开阔思路和眼界，为了理解别人。&lt;/p&gt;
+
+&lt;p&gt;至于其中提到的为了理解别人，会有一定的促进的，至少会有共同话题去讨论。而作者将其劣放大，认为这会困住思维而自我之见，不过普通人确实会有这样的心态。而如是虚心求学之心，这说完全不一样了。&lt;/p&gt;
+
+&lt;p&gt;但对于学习“我有什么就学什么……有机会就学……”，我非常赞同。我们就应该去开阔视野，而不要局限在自己的领域，自我满足（陶醉）。&lt;/p&gt;
+
+&lt;p&gt;德鲁克也提到过“禅宗和孔子”不同的学习方法。&lt;br /&gt;
+&amp;gt; 日本人的“禅宗”学习法，学习的目的是自我提高，它使一个人提高以后能不断开阔视野、对自己提更高有的要求，做好目前担任的工作。它虽然也有学习曲线，但并不存在固定的最终的高峰。持续学习会导致一个突破，即一种新的学习曲线，有着新的、更高的高峰，然后又有新的突破。&lt;/p&gt;
+
+&lt;p&gt;德鲁克表示，禅宗的方法是正确的，而孔子及西方的思想（学习为了提高自己，以便担任新的、不同的、更重大的工作。学习的性质表现于一种学习曲线之中，经过一定时期以后，学习达到一个熟练精通的高峰，就一直停留在那里了）实际上是真正的学习的一种障碍&lt;/p&gt;
+
+&lt;p&gt;德鲁克举的一个案例：&lt;br /&gt;
+&amp;gt; 一家规模相当大的公司总经理有一次顺便同我讲，他在某一天下午没有能去看我，因为他去参加他们公司中有关焊接的训练会了——是作为一位学生，而不是作为一位观察者或教师。这不太平常。但公司总经理参加电子计算函授课程的却相当普遍。年青人认为这样做是自然的。&lt;/p&gt;
+
+&lt;p&gt;这种持续训练并不把注意力集中于某一种具体技术，参加这种训练会的有某一工作级别上的所有人员并把注意力放在该单位内的所有工作上。工厂电气工人参加的训练会，参加的人还有同一工厂中的机器操作人员、安装和维修机器人员、挥动扫把的清洁工——以及他们所有的上线。这种训练会的注意中心是工厂的工作，而不是某个人的工作。&lt;/p&gt;
+
+&lt;p&gt;在上篇&lt;a href=&quot;http://kkuang.net/subversion-of-the-big-bang/&quot;&gt;《大爆炸式颠覆来袭》&lt;/a&gt;，更能感受现时代的特征。正在进行迅速的革新（颠覆），并且以摩尔定律的规律进行着变化。例如，有谁预料的移动互联几年内如此快速的发展；再如云计算的平台，让搭建应用如此简单等等。&lt;/p&gt;
+
+&lt;p&gt;对于我们技术员来说，同样是大爆炸来袭，新技术新平台如雨后春笋。更是要不断扩大自己的视野，多去接触不同的事物。更不能拒绝新玩意，保守的态势，这样迟到会被颠覆。更不能沉醉在先前的成就中不能自我解脱。跟随潮流，大势所趋才行。&lt;/p&gt;
+
+&lt;p&gt;特别在现强大的开源社区背景下，更多的寻找工具和组合工具解决业务问题能力。很大程度上不需要再重新创轮子。但这要求本身技术够扎实，能迅速掌握工具（而不是被大量的工具掌握）；视野够开阔，知道有哪些工具，并且能筛选出适合业务场景下的工具。&lt;/p&gt;
+
+&lt;p&gt;这就要求我们持续训练自己，不仅是工作职责范围内，更放开视野。了解公司业务背景，关注各种工具。但注意的中心始终是把工作做得更好，用不同的、新的方法做工作。&lt;/p&gt;
+
+&lt;p&gt;这会使得一个人易于接受新的、不同的、创新性的、更富于活动的工作。&lt;/p&gt;
+
+</content>
+ </entry>
+ 
+ <entry>
+   <title>大爆炸式颠覆来袭</title>
+   <link href="http://kuang.io/subversion-of-the-big-bang"/>
+   <updated>2013-04-05T00:00:00+08:00</updated>
+   <id>http://kuang.io/subversion-of-the-big-bang</id>
+   <content type="html">&lt;p&gt;最近看新闻都在争论微信该不该收费，工信部也插手到具体某个业务该不该收费的事情。&lt;/p&gt;
+
+&lt;p&gt;我们先看看为什么运营商逼着微信收费？收不收钱，向谁收钱都不是关键。问题的本质在于微信对于运营商来说，是颠覆性创新，是对电信运营商基于话音的传统商业模式的知彻底颠覆。&lt;/p&gt;
+
+&lt;p&gt;今天刚读到《哈佛商业评论》一篇文章——《大爆炸式颠覆来袭》，摘录文章内容及观念，理解这个问题的内在，文章很棒。&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;p&gt;##颠覆性创新&lt;br /&gt;
+人们都在提防那些初创公司，因为它们能凭借更便宜的替代产品，吸引新出现的低端客户，然后不断去侵占高端市场，最后捕获所有客户。我们都已意识到，当这些颠覆者出现后时，传统公司需要加快行动步伐。对颠覆者进行收购或采用同样的新兴科技，孵化出能与之抗衡的新业务。&lt;/p&gt;
+
+&lt;p&gt;然而，以颠覆性创新为基础的战略模型存在一个盲点。它假设颠覆者起初只能提供价格便宜、性能低下的产品，慢慢蚕食利润率最低的市场分层。&lt;/p&gt;
+
+&lt;p&gt;在这样的理论下，传统公司还有时间进行补救，开发出属于自己的颠覆性产品。但对于TomTom，Garmin和Magellan这样的导航产品公司，这样的应对措施已经失灵：现在每一部智能手机都预装了免费的导航软件，这些软件不仅价格低廉，而且比独立导航设备功能更强大。此外，在iOS和安卓操作系统强大平台的支持下，这些导航软件通过云系统不断发布最新版本，从而不断提高性能。&lt;/p&gt;
+
+&lt;p&gt;在这种情况下，颠覆已不再来自于同一行业的竞争对手，颠覆者的商业模式甚至完全不同于传统公司；颠覆者也不再遵循传统的颠覆路径——进入成熟市场的底部，然后按照精心计划的路线夺取更大的市场分层。在新形势下，传统公司的客户会在几周之内“倒戈”，这些客户不再仅是那些利润贡献最低或“可有可无”的消费者，所有市场层级会同时出现大量消费者“叛逃”的情况。&lt;/p&gt;
+
+&lt;p&gt;这种变化改写了游戏规则。对于成熟产品被新技术淘汰以及不断缩短的产品生命周期，我们已司空见惯，但在今天，整个产品线，甚至整个市场都可能在一夜之间被建立或毁灭。颠覆者随时可能异军突起，眨眼间就无处不在。这样的颠覆会一发不可收拾，我们不妨将这些改写游戏规则的颠覆者命名为“大爆炸式颠覆者（Big-bang Disrupters）”。他们给创新者带来的是真正的灭顶之灾，而不再仅仅是进退两难的窘境。&lt;/p&gt;
+
+&lt;p&gt;研究发现，大爆炸式颠覆是无目的、无计划的。他们并不遵循传统的战略路径和惯常的市场适用模式。目前，传统公司在此类颠覆下成功生还的先例太少。&lt;/p&gt;
+
+&lt;p&gt;##完全不同的颠覆&lt;br /&gt;
+要生存下去，传统公司首先要理解，大爆炸式颠覆和传统颠覆之间不仅存在程序上的差异，还有本质的区别。除了更你你你低廉的价格，大爆炸式颠覆者的真正优势是具备更强的创造性，并且能更好地不敢去其他产品、服务进行融合。由于社会化媒体的兴起，现在的消费者更便利地获得分享和传播产品信息，这对大爆炸式颠覆起到了推波助澜的作用。&lt;/p&gt;
+
+&lt;p&gt;在Facebook,Twitter和Tumblr盛行的年代，网络风潮能在几天之内席卷全球；产品也不例外。在首次登录安卓平台的24小时内，内嵌广告的手机游戏“愤怒的小鸟”下载量超过一百万次，如果不是因为狂热的游戏爱好者挤垮了开发商的服务器，这个数字可能更高。7个月后，该游戏的下载次数已经超过两亿次。类似的，在很多行业中，创新产品和服务的快速成长也已将传统公司逼入绝境。&lt;/p&gt;
+
+&lt;p&gt;通过网络快速传播的市场信息极大地缩短了新技术的市场适应周期。无论身处何地，消费者都能通过移动设备获取一系列的特定数据源。这些信息能帮助他们找到价格最低、最优质以及最新、最流行的产品和服务。&lt;/p&gt;
+
+&lt;p&gt;对于传统公司，大爆炸式创新带来的最大挑战，也许在于它们毫无征兆的爆发。一些技术看起来和你的业务毫不相关，但大爆炸式颠覆者能将这些技术组合在一起，开发出价值主张远高于传统类的新产品。在新型颠覆者的眼中，传统公司甚至不是他们的竞争对手。因为他们满足客户需求的方式完全不同。为能获得短期的竞争优势，普通颠覆者会小心翼翼地分析传统公司的产品线，绞尽脑汁地为顾客提供较低价的价格和性能略强的产品。而大爆炸式颠覆者吸引客户的方式就像一件新奇的玩具抛向一群孩子，将他们吸引到完全不同的业务上。&lt;/p&gt;
+
+&lt;p&gt;例如，亚马逊(amazon.com)就是典型的例子。让我们回忆一下贝索斯是如何决定进军图书市场的。贝索斯发现图书市场有以下特点：市场碎片化，书商需要储存大量的库存；产品小且运输方便；书商众多，供应链稳定，但被一些势力强大的中间人控制。他意识到，电子商务是解决这些问题的自然选择。因此贝索斯选择图书行业并不是因为他熟知出版业，而仅因为这是一个合乎逻辑的决定。贝索斯将电子商务视为一种工具，图书业恰好是一个合适的施展对象。&lt;/p&gt;
+
+&lt;p&gt;像亚巴逊这样的竞争对手会出其不意地发起攻击。他们不是简单地推行更快速的战略制定、战略执行和更高效的运营。他们创造了全新的的产品、战略和市场进入模式。&lt;/p&gt;
+
+&lt;p&gt;##大爆式颠覆的“三无”特征&lt;br /&gt;
+一旦进入市场，大爆炸式颠覆就会如火箭升空般快速发展。这种惊人的速度来源于它的三个特征：&lt;strong&gt;无可阻档的开发、无法控制的成长和无章可循的战略&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;###无可阻档的开发&lt;br /&gt;
+&lt;strong&gt;近年来在硅谷兴起了一种新的创新活动 —— 创新马拉松（又译编程马拉松），各家公司的工程师和产品开发人员在深夜聚到一起，接力编程，看看在短期几天里，他们能拼凑出什么样的产品。创新者并没想颠覆任何人，传统公司只是躺着中枪。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;Twitter正是在2006年的一次创新马拉松中诞生的。Twitter起初并不引人注目，开发者只是试着向多位用户同时发送标准文本信息，这基本不需要什么高科技。然后时至今日，Twitter已经拥有超过两亿的活跃用户，每天信息量达到5亿条。从新闻业，到整个信息生态系统，甚至不受欢迎的的国家政府，都成为Twitter的颠覆的对象。&lt;/p&gt;
+
+&lt;p&gt;仅凭最少的投资，Twitter就毫无征兆地取得了成功。这揭示出大爆炸式颠覆的一个重要的特征：依托于快速成就、普通存在的技术平台，创新往往诞生于高频率且低成本的实验中。这类颠覆者不需要巨额的预算，在开发成型之前也不会被关注，这大大提高了他们的隐蔽性。由于成本低廉，而且人们也没有对此创新寄予厚望，因此创业者可以先大胆地将自己的想法付诸实践，然后再观察市场反应。&lt;/p&gt;
+
+&lt;p&gt;包括Twitter在内，这些创新所采用的都是成就的技术，因此其技术成本十分低廉，甚至为零成本。以OTT（Over-the-Top，是互联网企业利用运营商的宽带网络发展自己的业务——微信就是这样）服务公司为例，包括Hul(视频点播)和Skype在内，这些创新让消费都可以挑破了基础设施供应商战略布局。他们的业务严重威胁到有线电视公司和电信公司提供的电视节目和通话服务。可以预见，未来最成功的创新者，是将他人技术完美组合的人。&lt;/p&gt;
+
+&lt;p&gt;随着颠覆性技术的生产成本和应用成本不断降低，创新者可以在极低的风险下对新应用进行试验，如果新产品无法快速地获得市场青睐，试验原型会被直接放弃。借助互联网、云计算和移动设备提供的开源平台，这些实验通常可以直接在真实的市场中进行。创业者甚至不需要前期投入，如果他们的应用大受欢迎，他们随时可以购买或租赁运算设备、商务软件、数据存储空间和通讯容量。在大爆炸式颠覆者的观念里，一次性推出几十个新产品，然后看哪个产品能大卖是天经地义的做法。&lt;/p&gt;
+
+&lt;p&gt;###无法控制的成长&lt;br /&gt;
+大爆炸式颠覆打破了埃弗特.罗杰斯的产品生命周期理论。经典的罗杰斯钟型曲线包括5级客户分层：创新者、早期采用者、早期大众、晚期大众和落后者。而火爆炸创新只包含两个分层：参与产品研发的测试用户和其他客户。这种新技术的适用曲线已近似于一条直线，在一开始，新技术采用者的数量会直线上升，当市场接近饱和或新的颠覆出现时，它又会快速下降。&lt;/p&gt;
+
+&lt;p&gt;营销专家杰弗里.摩尔在其著作《跨越鸿沟》中阐述，早期采用者和早期大众之间的障碍难以突破，摩尔将其称之为“鸿沟”。要跨越这道鸿沟，公司需要随着时间推移，改变营销策略。面对颠覆者直线型的技术适用曲线，摩尔精心设计的市场营销战略显然失效。新产品一旦上市，大爆炸式颠覆者就可以同时对所有分层的消费者进行营销宣传。就像iPad上市时那样，从买不起笔记本电脑的收人群到百万富翁，人人都拥有一台自己的iPad。&lt;/p&gt;
+
+&lt;p&gt;新产品的周期可以简化为三个阶段：开发、部署和替代。而周期替换的速度接近于计算机能力发展的速度。按摩尔定律理论，每经过两年，产品的生命周期就会缩短一倍，这大大加快了颠覆的步伐。而摩尔定律为创新设定了发展节奏。&lt;/p&gt;
+
+&lt;p&gt;大爆炸式颠覆不再需要跨越市场的“鸿沟”。相反，创新者们会不断试错，直到最终获得巨大的成功。这让传统企业更难采用新技术，跟随性地推出颠覆性产品和服务；因为所有失败的实验看似都在证明，新技术还没有做好商业化的准备。但实际上，在这个信息爆炸的时代，每一次“悲壮”的失败都会吊起消费者的胃口，让他们更加期待重磅产品的诞生。&lt;/p&gt;
+
+&lt;p&gt;想想那些引人注目但最终失败的产品发布，例如：Magnavox公司的Odyssey游戏、苹果的牛顿平板电脑和第一代电动汽车。随着技术成本的下降，人们最终会找到可行的技术应用方案（例如iPad和iTunes），消费者的期待也会得到完全的释放。此刻的传统公司再进行研发则为时已晚；等待市场飞速发展或紧跟潮流加入创新队伍都只是亡羊补牢。&lt;/p&gt;
+
+&lt;p&gt;这些一败涂地的实验看上去毫无意义，但对于传统公司，这些非常明显的预警信号，他们需要紧急改变策略，寻找战略拐点。这就像在战场，那些偏离目标的炮弹并不意味着敌人失去目标或射击精确度不够，而是他们在进行定位——发接一发地接近目标，直至找到准确位置，再将所有的弹药倾泻到你的阵地上。&lt;/p&gt;
+
+&lt;p&gt;传统公司无法解读预警信号以及与生俱来的对变革的抵触，让它们难以逃脱被颠覆的命运。2001年，因为输了版权官司，当时流行的音乐分享网站Napster被迫停止运营。唱片行业的大佬们无不弹冠相庆，他们认为数字音乐会按照他们制定的时间表发展。然而就在同一年，苹果发布了iTunes。凭借他人的培育的创新，苹果很快获得了市场的统治地位。这证明，尽管Napster倒在法律制度面前，但消费才渴望随时随地享受音乐是大势所趋，无人可以阻挡。&lt;/p&gt;
+
+&lt;p&gt;又如电子阅读器的例子。2007年，kindle上市时，亚马逊已经从索尼和SoftBook身上吸取了长达十年的失败教训。第一代Kindle的容量、续航时间和显示技术终于满足了消费者的需求。此外，亚马逊在Kindle上添加了无线互联网的功能也起来了重要的作用，人们终于能在自己的虚拟图书馆里无缝地添加或删除书籍了。&lt;/p&gt;
+
+&lt;p&gt;亚马逊所做的，只不过是等候正确的技术组合成熟到能满足主流大众需求的时机。它真正的创新在之处在于，Kindle的发布充分利用亚马逊强大的品牌和客户网络，并且从发布第一天起，用户就能方便地选购海量的电子书籍。2007年Kindle面世之前，电子书不过是一个微不足道的销售品类，今天它已成为占所有书籍销售收入近20%的巨大产业。随着电子书的发展，图书出版社业供应链上的每个环节都受到了巨大的冲击。&lt;/p&gt;
+
+&lt;p&gt;###无章可循的战略&lt;br /&gt;
+大爆炸式颠覆者的各个方面都与我们熟知的竞争战略想抵触。《市场领导者的法则》中辛阐述，企业应该从三种价值法则中挑选一项，具只能挑选一项法则来制定企业的战略目标。这三项价值法则分别是：低廉成本（卓越的运营）、持续创新（产品的领导地位）和订制服务（客户亲密度）。作者进而认为，若无法从中做出选择，企业将陷入混乱中。&lt;/p&gt;
+
+&lt;p&gt;然而，这些战略法则对大爆炸颠覆完全失败。这些颠覆者天生就拥有更强的产品性能更低廉的价格和更出色的定制化服务。一旦进入市场，他们就会同时对三个阶段法则上不敢去主流产品竞争。&lt;/p&gt;
+
+&lt;p&gt;创新如何能兼具更优质且便宜？答案是计算机技术。摩尔定律预测，计算机将变得更快、更小、更便宜。随着成本的不断下降，计算机技术的应用范围早已扩展至全球；并且通过云计算技术。这大磊降低了创新成本。一个产品或一项服务的三大成本和按比例分摊计算的开发成本。通过新技术持续性地、大幅度地降低这三项成本，新产品和服务就有可能比传统产品性能更好，同时价格更便宜。&lt;/p&gt;
+
+&lt;p&gt;而对大爆炸颠覆者，严格执行现有战略毫无胜算。即使传统公司退避三舍，聚焦于重要的客户，为其提供质量更高或价格更低的产品或服务，充其量也只是延缓被颠覆的时间。更加严格的战略聚焦让公司的视野更狭窄，使他们无法发觉到近眼前的灭顶之灾。&lt;/p&gt;
+
+&lt;p&gt;地图出版业是一个成熟的行业，被几家公司和非营利的汽车俱乐部主导。竞争首先来自于地图网站，例如MapQuest和雅虎地图；然后是独立导航设备和汽车内嵌导航设备，通过GPS卫星定位，这些产品能提供实时路线导航和详细的语音提示。然而出乎人们的意料，智能手机成为其大爆炸式颠覆者，没有人想到智能手机会与传统的导航设备形成竞争。例如，像谷歌地图这样的导航应用，几乎能提供高端GPS设备所有的功能。更重要的是，它们是免费的——免费的安卓系统应用。目前，已经有几百万部智能手机安装了谷歌地图，而且它不断进化，永远是Beta测试版。&lt;/p&gt;
+
+&lt;p&gt;谷歌地图可以同时在三项价值法则上与独立GPS设备进行竞争。首先，它的成本优势显而易见；其次，它不断地升级和发布新版本，在创新上无可匹敌；最后，它与手机电话簿、网络、电子邮件和生活信息应用无缝连接，因此它在用户亲密度上也占尽了先机。在经历多年稳定发展后，GPS设备行业不出意料地成为明日黄化。在手机导航应用出现的两年内，Garmin股票市值缩水70%，TomTom的市值更大跌近85%。&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;该文摘录于：《哈佛商业评论》2013年第3期&lt;/em&gt;&lt;/p&gt;
+
+</content>
+ </entry>
+ 
+ <entry>
+   <title>javascript观察者模式</title>
+   <link href="http://kuang.io/javascript-observer-design-pattern"/>
+   <updated>2013-03-31T00:00:00+08:00</updated>
+   <id>http://kuang.io/javascript-observer-design-pattern</id>
+   <content type="html">&lt;p&gt;观察者模式在javascript客户端编程中到处可见其踪影，非常重要的一种设计思想。特别我最近在接触angularjs后，更体会其中妙处。&lt;/p&gt;
+
+&lt;p&gt;搜索一下javascript观察者模式，经典的文章可谓不少。但还是想自己去整理一下思路，更为深刻去理解是原由。&lt;/p&gt;
+
+&lt;p&gt;在工作中，有时会更加重视实践价值，而忽视原理性知识，但当我们了解原理后，更能预测其结果和了解其本意，应用场景。&lt;/p&gt;
+
+&lt;p&gt;###介绍&lt;br /&gt;
+在事件驱动的环境中，观察者模式（又名发布订阅模式（Publish - Subscribe）是一种管理人与其任务之间的关系（确切地讲，是对象及其行为和状态之间的关系）的得力工具。&lt;/p&gt;
+
+&lt;p&gt;它定义了一种一对多的关系，让多个观察者对象同时监听某一个主题对象，这个主题对象的状态发生变化时就会通知所有的观察者对象，使得它们能够自动更新自己。&lt;/p&gt;
+
+&lt;p&gt;###好处&lt;br /&gt;
+将一个系统分割成一系列相互协作的类，但有一个常见的副作用：需要维护相关对象间的一致性。我们不希望为了维持一致性而使各类紧密耦合，因为这样降低了它们的可重用性。  &lt;br /&gt;
+1. 支持简单的广播通信，自动通知所有已经订阅过的对象  &lt;br /&gt;
+2. 页面载入后目标对象很容易与观察者存在一种动态关联，增加了灵活性  &lt;br /&gt;
+3. 目标对象与观察者之间的抽象耦合关系能够单独扩展以及重用&lt;/p&gt;
+
+&lt;p&gt;###实践&lt;br /&gt;
+先直接上代码（将代码先读懂），&lt;a href=&quot;http://jsfiddle.net/chopperkuang/44QLw/2/&quot;&gt;源代码链接&lt;/a&gt;。&lt;/p&gt;
+&lt;iframe width=&quot;100%&quot; height=&quot;500&quot; src=&quot;http://jsfiddle.net/chopperkuang/44QLw/2/embedded/&quot; frameborder=&quot;0&quot;&gt; &lt;/iframe&gt;
+&lt;p&gt;以上代码描述一个博客发布的场景。当博客作者发布新文章者时，订阅者都可以看到该文章，也可以进行相应的操作（比如胡扯一句）。&lt;/p&gt;
+
+&lt;p&gt;本例中的发布者是blogger实例（从observer扩展而来），拥有publish行为，通知所有订阅者。并且可以通过addSubscriber/removeSubscriber添加和删除订阅者。&lt;br /&gt;
+在这，订阅者只是普通的回调函数，负责各自的行为动作。&lt;/p&gt;
+
+&lt;p&gt;###适用性&lt;br /&gt;
+####事件监听器也是观察者&lt;br /&gt;
+在DOM脚本脚本编程中，事件监听说到底就是一种内置的观察者，但事件处理器（handler）与事件监听器（listener）并不是一回事。前者说穿了就是把一种事件传给与其关联的函数的手段。而且这种模型中一种事件只能指定一个回调方法。而在监听器中，一个事件可以与几个监听器关联，每个监听器都能独立于其他监听器而改变。  &lt;br /&gt;
+例如，使用事件监听器，可以让多个函数响应同一个事件：  &lt;br /&gt;
+//example using listeners  &lt;br /&gt;
+var element = $(‘example’);  &lt;br /&gt;
+var fn1 = function(){  &lt;br /&gt;
+	//handle click  &lt;br /&gt;
+}  &lt;br /&gt;
+var fn2 = function(){  &lt;br /&gt;
+	//do other stuff with click  &lt;br /&gt;
+}  &lt;br /&gt;
+addEvent(element, ‘click’, fn1);  &lt;br /&gt;
+addEvent(element, ‘click’, fn2);  &lt;br /&gt;
+但用事件处理器就办不到：   &lt;br /&gt;
+//example using handlers  &lt;br /&gt;
+var element = document.getElementById(‘id’);   &lt;br /&gt;
+var fn1 = function(){  &lt;br /&gt;
+	//handle click  &lt;br /&gt;
+}  &lt;br /&gt;
+var fn2 = function(){  &lt;br /&gt;
+	//do other stuff with click  &lt;br /&gt;
+}   &lt;br /&gt;
+element.onclick = fn1;   &lt;br /&gt;
+element.onclick = fn2;  &lt;br /&gt;
+可见，监听器和观察者之间的共同之处显而易见。实际上互为同义语，它们都订阅特定的事件，然后等待事件的发生。事件发生后，订阅方的回调函数被执行。  &lt;br /&gt;
+####适用场合&lt;br /&gt;
+。当一个抽象模型有两个方面，其中一个方面依赖于另一方面。将这二者封装在独立的对象中以使它们可以各自独立改变和复用   &lt;br /&gt;
+。当对一个对象的改变需要同时改变其它对象，而不知道具体有多少对象有待改变   &lt;br /&gt;
+。当一个对象必须通知其它对象，而它不能假定其它对象是谁。换言这，你不希望这些对象紧密耦合的。&lt;/p&gt;
+
+&lt;p&gt;就拿上一篇文章中的案例(&lt;a href=&quot;http://kkuang.net/awesome-angularJS-features/&quot;&gt;angularjs五个最棒的特点&lt;/a&gt;)的例子。采用angularjs的$watch方法，就可以注册成某个属性或对象的监听者，一旦该对象发生变化，就会被通知到。而且可以在不同的模块中注册，案例中分别在Controller和Directive中都有注册，当菜单的总量变化时，能被立马执行。程序体也非常解耦，无需主动去调用某个对象通知其更新。&lt;/p&gt;
+&lt;iframe width=&quot;100%&quot; height=&quot;400&quot; src=&quot;http://jsfiddle.net/chopperkuang/qa3pQ/1/embedded/&quot; frameborder=&quot;0&quot;&gt; &lt;/iframe&gt;
+
+&lt;p&gt;再前段时间在做的一个税费计算器项目，有很多的输入条件（面积，购入金额，区域等等）并且不同的输入控件（下拉单、输入框、单选等等）。传统的基于事件处理器的方式是，在不同的控件上注册对应的事件，例如，onchange, onclick等等，触发页面更新或重新计算税费的动作。   &lt;br /&gt;
+那么，对页面的更新和计算逻辑会混淆在一起。但如果以监听的方式，我们将各种输入组件成一个filter对象，然后用$watch监听该对象的变化。只要其中一个输入值发生变化，立马主动重新计算税费，也触发另外一个监听UI的变更对应的UI效果。&lt;/p&gt;
+
+&lt;p&gt;angularjs内部提供各种事件供监听，例如：$routeChangeStart(路由变更开始事件)，这个事件就非常有用，我可以将先前在每个Controller中的判断用户是否登录的逻辑抽离到该事件中进行统一判断（因为Controller对应一个路由）   &lt;br /&gt;
+在后续，我会更详细介绍angularjs中观察者模式的应用，真的太酷了。&lt;/p&gt;
+
+&lt;p&gt;###小结&lt;br /&gt;
+观察者模式是对应用系统进行抽象的非常有力的手段。可以定义一些事件供客户端使用，而不需要为此深入了解他们的代码。现在的WEB应用程序越来越大，在此背景下，作为一种提高代码的可维护性和简洁性的有力手段，可观察对象的作用更显突出。这种模式的应用有助力防止第三方开发人员因为对你的应用程序了解细节太多而把事情搞糟。&lt;/p&gt;
+</content>
+ </entry>
+ 
+ <entry>
+   <title>伟大的程序员是怎样炼成的？</title>
+   <link href="http://kuang.io/what-makes-a-great-software-engineer"/>
+   <updated>2013-03-27T00:00:00+08:00</updated>
+   <id>http://kuang.io/what-makes-a-great-software-engineer</id>
+   <content type="html">&lt;p&gt;近几周，一份反映 Netflix 公司企业文化的报告在网上广为流传。 这份报告里列举了很多Netflix公司里令人称赞的做法，包括这个公司是如何的招聘和辞退员工的。 里面有大量的信息是描述Netflix公司是怎样对待员工的，这使Netflix公司变成了一个很有吸引力的工作场所。报告里面提到过有一个关于员工所期 望的内容的清单，但没有把清单列出来。 报告的开始部分就谈及了企业价值问题，而且是按照员工的立场角度写的，可惜并没有把这个问题展开。&lt;/p&gt;
+
+&lt;p&gt;我并不在Netflix工作——你也知道 (我在 Yahoo!工 作)—— 但我深切的感觉到，不管你在哪里工作，成为一个优秀的员工、优秀的软件开发工程师的过程是一样的。 下面所列举的都是伟大的程序员所具有的经验和品质。&lt;/p&gt;
+
+&lt;p&gt;###只做正确的事&lt;/p&gt;
+
+&lt;p&gt;对于软件这一行的人，我们有个很大的挑战，就是如何能够用正确方法的做事情。什么是正确的方法，这依赖于你在做什么和做给谁。而究竟所谓 “正确的方法”里都包括了什么内容，这并不是重点，重点是你是否能坚持按照这种方式做事。&lt;/p&gt;
+
+&lt;p&gt;初级程序员在这个问题是通常不能做到坚持，而资历较深的程序员却 能始终坚持原则。 也许会有一个“非常紧急”的项目，或者这个项目很特殊，不能按常规过程开发。这只是个假象。&lt;/p&gt;
+
+&lt;p&gt;好的程序员知道即使在任何情况和环境下都要坚持做正确的事情。 如果说按正确的方式开发将导致不能按时完成任务，那么，他们就会知道，这个项目是不能按时完工的。 不要妥协，工程质量是你作为一个优秀程序员的唯一终极证明。 确保你所有的代码都是在正确的方法下100%正确的写出的。&lt;/p&gt;
+
+&lt;p&gt;要按一个优秀的程序员的标准来要求自己。&lt;/p&gt;
+
+&lt;p&gt;###甘愿受苦&lt;/p&gt;
+
+&lt;p&gt;听起来很傻，但却是真的，优秀的程序员都乐于承担工作上给他们带来的痛苦。 你说出一个伟大的程序员，我都能告诉你,在他或她的职业生涯里，各个阶段，都曾有花好几天时间去解决一个问题的经历。 优秀的程序员品味着困难给他们带来的挑战，这让他们日以继夜，他们明白，问题必须要解决掉。&lt;/p&gt;
+
+&lt;p&gt;不太优秀的程序员就不一样了，他们在刚刚碰到有麻烦的迹象时就先想到要寻求帮助。 在问题面前，他们习惯于去寻求帮助，而不是自己去努力解决这个问题。 他们最喜欢的一句话是：“帮我看看这个问题”。 伟大的程序员的第一反应是我要自己解决这个问题。解决问题是种技能，是优秀的程序员非常看重的一种技能。&lt;/p&gt;
+
+&lt;p&gt;好的程序员是通过痛苦的磨练才成为伟大的程序员的。 痛苦的磨练是说当你对这个问题实在无能为力时才去请求外援。 求助就意味着认输， 所有尽量减少这种处境的发生。 甘愿受苦。和问题做不懈的斗争。这就是你要学会的。&lt;/p&gt;
+
+&lt;p&gt;注意: 我并不是说你不能寻求他人的帮助。我说的是，你首先要尝试自己去完成任务，如果你不能完成，再寻求帮助。 不要在自己没有努力过前就轻易的求助。你经常会发现，当你知道了解决方法后，你才认识到，你用自己的力量本也能解决这个问题的。&lt;/p&gt;
+
+&lt;p&gt;###学无止境&lt;/p&gt;
+
+&lt;p&gt;如果有人敢声称他不需要再学任何新的知识，我是绝对不愿意和他共事的。 在有些行业，你也许很多年不学新的东西也能干的很好，但软件技术革新的如此之快，你不能不时刻关注。 你的老板是由于你有某些技能才花钱雇你的，如果你的技能已经落伍、过期了，那你也就没有价值了。 想成为一名伟大的程序员，你首先要承认你不是无所不知，你必须每天都要努力的寻找、学习新的知识。&lt;/p&gt;
+
+&lt;p&gt;在你现在的公司里或组织里寻找能让你学习、让你钦佩的人。在复杂的问题上征求他们的意见，看看他们是怎么思考的。 向他们介绍你的解决思路，请他们给予批评指点。 如果在你的周围你不能找出一个能作为你的导师的人，这要么是你还没有认真的寻找，要么是你留在了一个不该留的公司里。 如果你在现在的工作上不能学习进步，那是到了你该换个工作的时候了。&lt;/p&gt;
+
+&lt;p&gt;要阅读网上的博客。关注一些研讨会。与其他程序员交流。伟大的程序员从不停止学习。&lt;/p&gt;
+
+&lt;p&gt;###分享知识&lt;/p&gt;
+
+&lt;p&gt;有一些程序员认为，他们的唯一价值所在就是他们所拥有的知识，于是，分享出他们的知识就会让他们的价值降低。 这是大错特错了。让你有价值的不是你的知识，而是如何运用你的知识给公司创造价值。 难道还会有比分享知识给他人更能给公司创造价值的方法吗?&lt;/p&gt;
+
+&lt;p&gt;我曾经面试过一家公司，知识不共享、相互保密、相互提防的理念在这家公司里根深蒂固。 在这样的环境里，员工之间形成了一种恶性竞争的关系，这直接导致了勾心斗角和诬陷中伤的产生。 我可不想在这样的公司里工作。如果每个人都对自己知道的事情讳莫如深，那你什么都学不到。&lt;/p&gt;
+
+&lt;p&gt;伟大的程序员希望他人也能知道自己所掌握的知识。他们并不担心会因此而失去优势，因为他们相信大家都会这样做。 伟大的程序员乐意看到他们的同伴成长、成功。 一个公司，它应该被一群喜欢知识共享的人组成，就像人们在运动场上，让团队的每个对员都强大起来，整个团队才会强大。&lt;/p&gt;
+
+&lt;p&gt;###伸出援助之手&lt;/p&gt;
+
+&lt;p&gt;伟大的程序员从来不会说“这不关我的事”。他们总是愿意伸出援助之手。他们经常在做自己的工作之余，去帮助那些编程新手。 如果有件任务必须按时完成，而又没有其他人能胜任，伟大的程序员会主动承担起这项任务。 他们从来不嘲笑来请求帮助的人，即使问题是那么的小、那么无意义、无价值。 伟大的程序员重视他们的团队，愿意为团队做任何的事情。 不管是要去写1,000行的代码，还是去编辑一个图片，伟大的程序员都会立即站出来帮助完成。&lt;/p&gt;
+
+&lt;p&gt;###十年磨一剑&lt;/p&gt;
+
+&lt;p&gt;伟大的程序员不是天生的，是后天炼成的。他们是本文上面提到的那些因素造就的，加上还要通过努力的工作。 如果你是刚刚意识到这些，那还不晚，你仍然有充分的时间来成为一个伟大的程序员。耐心是关键。伟大的程序员不是在旦夕之间就可以成就的。有些人可能要花上 数年，有些人则需要十几年。 没有人为你写血泪史。 好的公司当发现你有成为伟大程序员的潜质时，会帮助你，为你提供舞台。而你会通过你的努力工作、让你的团队进步来证明自己。要坚定，要自律，通往伟大程序 员的道路会很长。&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;http://www.nczonline.net/blog/2009/08/21/what-makes-a-great-software-engineer/&quot;&gt;英文原文&lt;/a&gt;  &lt;br /&gt;
+&lt;a href=&quot;http://www.aqee.net/what-makes-a-great-software-engineer/&quot;&gt;中文原文&lt;/a&gt;&lt;/p&gt;
+</content>
+ </entry>
+ 
+ <entry>
+   <title>angularjs五个最棒的特点</title>
+   <link href="http://kuang.io/awesome-angularJS-features"/>
+   <updated>2013-03-26T00:00:00+08:00</updated>
+   <id>http://kuang.io/awesome-angularJS-features</id>
+   <content type="html">&lt;p&gt;&lt;strong&gt;简单的说：angularjs 是全新的，功能强大的客户端技术，提供一种强大的构建动态WEB应用设计 结构框架，通过扩展HTML的语法，让你能更清楚、简洁地构建你的应用组件。它克服HTML在构建应用上的不足而设计的。HTML是一门很好的为静态文本展示设计的声明式语言，但要构建WEB应用的话它就显得乏力了。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;###特点1： 双向数据绑定&lt;br /&gt;
+数据绑定是angularjs中最酷，最实用的功能。这将节省你相当数量的代码。典型的Web应用程序可能包含其80%的代码，专门用于遍历、操作和监听DOM。数据绑定使这些代码消失，这样可以专注于你应用程序中的业务实现。&lt;/p&gt;
+
+&lt;p&gt;在应用程序中，只要将Model做为唯一对象关注就可以了，进行更新和读取。而数据绑定指令提供将Model到View的映射，这个映射是无缝的，无需应用程序做任何的操作。只要当Model发生变化后，View也会立马变更。反之，当View变更后，Model也会随之更新，这个是双向作用，并且是无缝结合。&lt;/p&gt;
+
+&lt;p&gt;传统上，当Model发生变化后，开发者需要手工操作DOM节点和属性来反映出其变化。反之，视图上的任何变化也无法自动的作用于Model上。如图所示：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://docs.angularjs.org/img/One_Way_Data_Binding.png&quot; alt=&quot;Alt text&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;angularjs 双向数据绑定改变这一切，让操作变化如此简单：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://docs.angularjs.org/img/Two_Way_Data_Binding.png&quot; alt=&quot;Alt text&quot; /&gt;&lt;/p&gt;
+
+&lt;iframe width=&quot;100%&quot; height=&quot;300&quot; src=&quot;http://jsfiddle.net/chopperkuang/xJzhG/9/embedded/&quot; frameborder=&quot;0&quot;&gt; &lt;/iframe&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://devgirl.org/wp-content/uploads/2013/03/concepts-controller.png&quot; alt=&quot;Alt text&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;###特点2： 模板&lt;br /&gt;
+在angularjs中，模板只是普通的HTML，这个HTML模板会被浏览器解析成DOM，并且angularjs会将该DOM进行编译。&lt;/p&gt;
+
+&lt;p&gt;在angularjs遍历这个DOM模板进行渲染称之为指令，总这，这些指令负责数据-视图的绑定。负责“连续地”更新，不需要模板和数据的重新合并.&lt;/p&gt;
+
+&lt;p&gt;我们需要重要认识到的是，angularjs操作是字符串的模板，但却是使用DOM进行输入，而不是HTML字符串。数据绑定就是DOM结构的转换，而不是字符串的拼接和通过innerHTML进行将视图变化。使用DOM的输入，而不是字符串。&lt;/p&gt;
+
+&lt;p&gt;angularjs 最大的差异在于，还有其他的子框架，允许开发者进行扩展，自定义指令，这样就可以封装成可重用的组件。&lt;/p&gt;
+
+&lt;p&gt;这种最大的优点在于：使设计者和开发者更好的合作，设计者通过HTML切成页面，而开发者就在此基础上进行少量变更就能将数据进行展示，无需太大的工作。&lt;/p&gt;
+
+&lt;p&gt;上述例子中的ng-repeat指令就是将多条数据进行循环展示。&lt;/p&gt;
+
+&lt;p&gt;另外一个好处，就是无需学习新的模板语言。&lt;/p&gt;
+
+&lt;p&gt;###特点3： MVC&lt;br /&gt;
+angularjs是结合最基本的MVC设计模式构建客户端WEB应用。但不是传统意义上的MVC，而是MVVM（Model - View - ViewModel）。&lt;br /&gt;
+#### Model&lt;br /&gt;
+Model就是应用程序中的数据，一些普通的javascript对象，无需继续某类，或者包裹在代理类中，或者通过getter/setter访问。这是非常棒的一种体验，减少了应用程序的复杂度。&lt;/p&gt;
+
+&lt;h4 id=&quot;viewmodel&quot;&gt;ViewModel&lt;/h4&gt;
+&lt;p&gt;一个视图模板对象，它提供具体的数据和方法关联到对应的视图上。&lt;br /&gt;
+viewmodel在angularjs中可以理解为$scope对象。$scope就是一个简单的javascript对象，这是很精简的API。当对象发现变化时，广播和通知相应的善状态。&lt;/p&gt;
+
+&lt;h4 id=&quot;controller&quot;&gt;Controller&lt;/h4&gt;
+&lt;p&gt;该Controller负责初始化状态和添加$scope的方法控制行为，但值得一提的是，控制器并不存储状态，在多个控制器状态不共享。&lt;br /&gt;
+详细的控制器介绍，可以看这篇中文文档：&lt;a href=&quot;http://www.angularjs.cn/A00C&quot;&gt;AngularJS开发指南17：Controller组件&lt;/a&gt;&lt;/p&gt;
+
+&lt;h4 id=&quot;view&quot;&gt;View&lt;/h4&gt;
+
+&lt;p&gt;###特点4： 依赖注入&lt;br /&gt;
+angularjs创建一套依赖注入方式，帮助开发者在构建系统时更易开发，理解和测试。&lt;br /&gt;
+依赖注入(DI)，你只要”喊”出你的依赖，而不需要去寻找和构建依赖对象。就如 “嗨，我需要一把斧子”，DI就会帮你制造一把斧子并且提供给你。&lt;/p&gt;
+
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-javascript&quot; data-lang=&quot;javascript&quot;&gt;&lt;span class=&quot;kd&quot;&gt;function&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;EditCtrl&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;$scope&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;$location&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;$routeParams&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+     &lt;span class=&quot;c1&quot;&gt;// Something clever here...&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;你也可以构建自己的服务，注入到需要的地方。&lt;/p&gt;
+
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-javascript&quot; data-lang=&quot;javascript&quot;&gt;&lt;span class=&quot;nx&quot;&gt;angular&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;
+    &lt;span class=&quot;nx&quot;&gt;module&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;&amp;#39;MyServiceModule&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[]).&lt;/span&gt;
+    &lt;span class=&quot;nx&quot;&gt;factory&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;&amp;#39;notify&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;&amp;#39;$window&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;function&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;win&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    	&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;function&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;msg&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        	&lt;span class=&quot;nx&quot;&gt;win&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;alert&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;msg&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+	    &lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;]);&lt;/span&gt;
+
+&lt;span class=&quot;kd&quot;&gt;function&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;myController&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;$scope&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;notify&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;nx&quot;&gt;$scope&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;callNotify&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;function&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;msg&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;nx&quot;&gt;notify&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;msg&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;###特点5： 指令&lt;br /&gt;
+angularjs指令是我非常喜欢的一个功能点。你有没有想过，让您的浏览器会做新的技巧呢？好了，现在就可以了！  &lt;br /&gt;
+这是最喜欢angularjs其中之一，这也可能是最具有挑战性的。&lt;/p&gt;
+
+&lt;p&gt;指令可用来创建我自定义的HTML标签，作为新的自定义组件。它们也可以用来“装饰”元素上的行为，并以有趣的方式进行DOM操作。&lt;/p&gt;
+
+&lt;p&gt;下面一个简单的例子，一个监听事件，并且更新Model&lt;/p&gt;
+
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-javascript&quot; data-lang=&quot;javascript&quot;&gt;&lt;span class=&quot;nx&quot;&gt;myModule&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;directive&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;&amp;#39;myComponent&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;function&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;mySharedService&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;nx&quot;&gt;restrict&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&amp;#39;E&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+        &lt;span class=&quot;nx&quot;&gt;controller&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;function&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;$scope&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;$attrs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;mySharedService&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;nx&quot;&gt;$scope&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;$on&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;&amp;#39;handleBroadcast&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;function&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+                &lt;span class=&quot;nx&quot;&gt;$scope&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;message&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&amp;#39;Directive: &amp;#39;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;mySharedService&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;message&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+            &lt;span class=&quot;p&quot;&gt;});&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;},&lt;/span&gt;
+        &lt;span class=&quot;nx&quot;&gt;replace&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;kc&quot;&gt;true&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+        &lt;span class=&quot;nx&quot;&gt;template&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&amp;#39;&amp;lt;input&amp;gt;&amp;#39;&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;});&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;然后，你可以像这样使用指令：&lt;/p&gt;
+
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-html&quot; data-lang=&quot;html&quot;&gt;&lt;span class=&quot;nt&quot;&gt;&amp;lt;my-component&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;ng-model=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;message&amp;quot;&lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;&amp;gt;&amp;lt;/my-component&amp;gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;拥有该特征后，你可以将应用程序按不同的组件编写，然后可以随意添加、删除及更新。very cool.&lt;/p&gt;
+
+&lt;p&gt;###奖励特点： 路由、过滤器、测试&lt;br /&gt;
+未完待续。。。&lt;/p&gt;
+
+&lt;p&gt;以上我只是简单的介绍，详细可以看&lt;a href=&quot;http://angularjs.org/&quot;&gt;angularjs官网的教程&lt;/a&gt;，也有不错的&lt;a href=&quot;http://www.angularjs.cn/&quot;&gt;angularjs中文版&lt;/a&gt;。&lt;/p&gt;
+</content>
+ </entry>
+ 
+ <entry>
+   <title>简单回顾下团队管理</title>
+   <link href="http://kuang.io/simple-review-management-team"/>
+   <updated>2013-03-10T00:00:00+08:00</updated>
+   <id>http://kuang.io/simple-review-management-team</id>
+   <content type="html">&lt;p&gt;###1. 先着手建立学习型团队，并要持续学习&lt;br /&gt;
+小技巧，一开始就找本书读，大伙一起读，这中收获会非常大。能持续学习的团队魅力是无穷的。&lt;/p&gt;
+
+&lt;p&gt;###2. 赋予责任&lt;br /&gt;
+这要求并不仅只是简单以任务完成情况，从结果出发，引导主动承担责任。只有承担责任才能成长更快，超越期待。&lt;/p&gt;
+
+&lt;p&gt;###3. 信息及时反馈&lt;br /&gt;
+这是一个团队持续优化的前提。大伙有想法，有疑问，有抱怨，有低落都能及时沟通，表达各自的想法。特别在大伙认可自己的想法，并且实施起来，一起进步，这种感觉很棒。&lt;/p&gt;
+
+&lt;p&gt;这也要求管理者注重情感上交流。如果某个伙伴在跟你聊天时会紧张，表达无序，这更多需要管理者自我反思。同样，无话交流，没有想法，也意味着团队内可能缺少激情或沟通。&lt;/p&gt;
+
+&lt;p&gt;结合上述持续学习，通过信息反馈不断优化，并且每个伙伴都能面向结果（而不单纯的面向上司），承担责任。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;让每个伙伴不断成长不断成长，并不断去提更高的更高的要求，让大伙都取得成就，这就是团队管理的目标。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;曾在《领导软件开发团队》读到这么一句话：&lt;br /&gt;
+&amp;gt;我是你们的领导，并不是因为我有强臂善射，或者我拥有最锋利的剑，亦或我有最勇敢的心，&lt;br /&gt;
+而是因为您们信任我的决策，并且知道即使我做错了，我也是为了我们所有人的利益，而不是为了自尊心。&lt;/p&gt;
+
+&lt;p&gt;先简单理理思路，工作中有很多案例，可以做更多的总结。&lt;br /&gt;
+以上只是大致思想，围绕这些方向，全情投入，方法会N多。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;什么是管理者？&lt;/strong&gt;  &lt;br /&gt;
+对结果（贡献）负责，进而影响组织的成效，都是管理者。&lt;/p&gt;
+</content>
+ </entry>
+ 
+ <entry>
+   <title>案例，案例，案例</title>
+   <link href="http://kuang.io/case-case-case"/>
+   <updated>2012-11-26T00:00:00+08:00</updated>
+   <id>http://kuang.io/case-case-case</id>
+   <content type="html">&lt;p&gt;引用微软掌舵人的史蒂夫·鲍尔默给出win8非常简洁的描述：触摸、触摸、触摸！强调win8体验非常棒之处。   &lt;br /&gt;
+我想借他引述：案例、案例、案例！    &lt;br /&gt;
+这更能快速直接的沟通，总结和提高等等，百试百灵。&lt;/p&gt;
+
+&lt;p&gt;结合自己的一些经历分享下：&lt;/p&gt;
+
+&lt;p&gt;比如……&lt;/p&gt;
+
+&lt;p&gt;###新人考核&lt;br /&gt;
+老大指导我们，在培养新人时，跟他们沟通存在哪些不足时，不能就简单的说：“你代码写得不好”。“你不够用心”。等等。   &lt;br /&gt;
+必须要有案例。&lt;br /&gt;
+&amp;gt;你哪行代码写得不好，如果这样去写，你觉得是不是性能更高？    &lt;br /&gt;
+你这件事情处理得不够用心，如果真花心思了，你肯定做得什么什么样。&lt;/p&gt;
+
+&lt;p&gt;否则就是人身攻击了。&lt;/p&gt;
+
+&lt;p&gt;再就，我们以前新人评估没有考核表（针对每项打分，需要自己，带教师父，直属上级分别打分），就靠感觉的评估新人的好坏。       &lt;br /&gt;
+刚开始我看着表中一项项很虚的指标，很没感觉。      &lt;br /&gt;
+&amp;gt;对工作效率的评估：     &lt;br /&gt;
+在既定时间和资源约束下达成目标的及时性及有效性。      &lt;br /&gt;
+A. 工作成果或输出经常能够超出上下游流程或业务需要，一贯高标准要求（9～10分)  &lt;br /&gt;
+B. 工作成果或输出能够满足流程及业务要求，偶尔有超出岗位要求的表现（7～8分)  &lt;br /&gt;
+C. 工作成果或输出满足流程及业务要求（5～6分)  &lt;br /&gt;
+D. 工作成果或输出基本满足流程及业务要求，尚存在少许需改善的地方（3～4分)  &lt;br /&gt;
+E. 工作成果或输出经常难以满足流程及业务要求，存在多处需要改进的地方（1～2分）&lt;/p&gt;
+
+&lt;p&gt;但，实际在给新人做阶段性评估时，针对表中一项项，跟新人一起看看各自的评分，指出为什么我们评分中存在差异。  &lt;br /&gt;
+如果新人自评过高，就针对这项以具体案例说明你现是处于这阶段，还可以有更多的提高，让他明白自身的不足。   &lt;br /&gt;
+如自评过低反之。&lt;/p&gt;
+
+&lt;p&gt;通过这考核表，引导我们，以具体的案例说明问题。不再是跟新人泛泛而谈。&lt;/p&gt;
+
+&lt;p&gt;###面试&lt;br /&gt;
+追问具体的案例，真是一针见血看出一个人的能力。  &lt;br /&gt;
+我们面试必问：   &lt;br /&gt;
+&amp;gt;你在先前工作中，有失败感的一个项目是哪个？  &lt;br /&gt;
+你当时是怎么解决的，能描述下情景吗？  &lt;br /&gt;
+在哪里？花了多长时间？哪些人？通过什么方式解决？    &lt;br /&gt;
+是什么技术难点卡住你的？等等。&lt;/p&gt;
+
+&lt;p&gt;追问下去。如果真是自个儿解决，并且总结了，很轻松的能把当时现场描述。&lt;br /&gt;
+面试官也很直观的判断这人解决问题思路和能力。&lt;/p&gt;
+
+&lt;p&gt;###带团队&lt;br /&gt;
+如果做为团队领导，要获得成员的尊重，其中榜样最重要的方面之一。  &lt;br /&gt;
+自身就是个案例，来指导成员的工作方式。   &lt;br /&gt;
+例如：自个儿工作懒散，不负责任，你好意思要求团队成员工作努力，该加班时要加班呀，不能推脱责任呀。&lt;/p&gt;
+
+&lt;p&gt;做为团队领导，很大的一部分成就感是来源于团队成员的成长。  &lt;br /&gt;
+大家都在煞费苦心分去培养他们。或者促膝而谈，或者大数一通，甚至想把自己积累的通通教他们一篇。    &lt;br /&gt;
+就像我在上篇提到的，指导他们，有时并不一定会得到认可。&lt;/p&gt;
+
+&lt;p&gt;要让他们去尝试，甚至试错，以能感知的案例，效果会倍增。  &lt;br /&gt;
+而如我们事必亲为，然后再苦口婆心的教育他们一万篇，要这么那么做，还真不如让他们做一篇。    &lt;br /&gt;
+平时，可慢温细火的，把我们思考问题的方式和经验旁敲式传授。&lt;/p&gt;
+
+&lt;p&gt;我会时不时跟他们聊聊天（下班后的茶水间或回家时多走站地铁），分享我的所见所闻。  &lt;br /&gt;
+&lt;strong&gt;。分享感知的经历&lt;/strong&gt;     &lt;br /&gt;
+&amp;gt;我今天参加了一个产品会议，大家在争论不休时，  &lt;br /&gt;
+产品总监说：“我们就做个简单列表，先让部分试用，然后再去优化。先不去想太多复杂的交互。我们能达到运营目标吗？”  &lt;br /&gt;
+大家回答，也可以的哦。&lt;/p&gt;
+
+&lt;p&gt;教导大家，先不要去想乱七八糟的方案，怎么简单怎么先将问题解决。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;。自己犯了的错误，也如实的分享，都会感同深受&lt;/strong&gt;    &lt;br /&gt;
+最近我在负责的一个项目，不断延期，跟他们分享我的失误：    &lt;br /&gt;
+＊ 在跟供应商合作时，没主动把控，依赖对方提供方案    &lt;br /&gt;
+＊ 求人不如求己，出现问题后，自己掌握的东西更好去排查问题和尽快修复&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;。认真倾听他们的故事&lt;/strong&gt;  &lt;br /&gt;
+如果可以给出中肯的建议，让他们再尝试做做。  &lt;br /&gt;
+前几天，同事抱怨说，有个前端组件不好用，影响了进度。  &lt;br /&gt;
+然后听他说下来，其实是这中间彼此沟通方式不对，将事情放大了。  &lt;br /&gt;
+建议他，站在对方的角度考虑该组件的价值，如果是有价值，首先要肯定对方的成果。  &lt;br /&gt;
+然后再提出在我们这需求下，哪些方面需要完善的，跟他一起达成结果。   &lt;br /&gt;
+另外，有时他们会聊很多想法，你可以记在脑子中，在后面的项目进展中，溶入他们的期待，能获得更多的成就感。&lt;/p&gt;
+
+&lt;p&gt;如上，都用一个个案件去发现和总结问题，大家更能有认识和思考。  &lt;br /&gt;
+而不要像思考家，大淡一番道理，大家都点头称是，过后啥也不是。&lt;/p&gt;
+
+&lt;p&gt;###获取他人认可或称赞他人&lt;br /&gt;
+在工作，经常要跟同事或上级沟通。要获得他人的认可，更要用具体的案例。   &lt;br /&gt;
+&amp;gt;我觉得这个新人基础太差？  &lt;br /&gt;
+老大会问，你能举几个具体的例子吗？  &lt;br /&gt;
+我们现项目中存在问题，我需要人和时间，把这些先优化？&lt;/p&gt;
+
+&lt;p&gt;老大会问，你能举个具体的例子吗？怎么影响了，产生了什么后果？   &lt;br /&gt;
+如果连具体的案例都拿不出来的话，怎么将事情描述并让大家达成一致？&lt;/p&gt;
+
+&lt;p&gt;同样，我们在判断问题时，也需要不断问，能举个具体的案例吗？&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;称赞他们同样如此&lt;/strong&gt;   &lt;br /&gt;
+我们在公司经常喜欢说：    &lt;br /&gt;
+&amp;gt;“你太棒了”，  &lt;br /&gt;
+“你太厉害了”  &lt;br /&gt;
+“你是怎么做到的”&lt;/p&gt;
+
+&lt;p&gt;但往往这些话说多了，某些时候会成自嘲，受表扬的人没太大感觉。（当然还是会有一点，至少他们是认可的）&lt;/p&gt;
+
+&lt;p&gt;而如换种方式：&lt;br /&gt;
+&amp;gt;“哇，你把这个组件封装得这么好，太厉害了”。    &lt;br /&gt;
+“今天你什么什么的方案，设计得不错，可以明显简单问题”。&lt;/p&gt;
+
+&lt;p&gt;以具体的事情做案例，进行称赞，这更能激励。&lt;/p&gt;
+
+&lt;p&gt;###关于总结&lt;br /&gt;
+这是先前某一天，我写的总结&lt;br /&gt;
+&amp;gt;今天开展了一次结对编程，将方法进行优化。发现问题需要马上总结开展优化，防止扩散。&lt;/p&gt;
+
+&lt;p&gt;现在回看，觉得好二，这种总结没有案例，时间长就难以复原当时的场景，所获得的收获也随之淡化。     &lt;br /&gt;
+而现总结收获，    &lt;br /&gt;
+首先，描述当时场景（案例）   &lt;br /&gt;
+再次，讲解解决的策略   &lt;br /&gt;
+最后，说明为什么会产生问题   &lt;br /&gt;
+如果是一些个人感想，我也会先描述当时的场景，然后再接上自己的想法。            &lt;br /&gt;
+这样的总结才有效果，不要为了去总结而总结。    &lt;br /&gt;
+有案例就会是能描绘出场景，记忆才深刻。&lt;/p&gt;
+
+&lt;p&gt;###生活中&lt;br /&gt;
+&amp;gt;女人：“你爱不爱我呀？”  &lt;br /&gt;
+我：“爱”  &lt;br /&gt;
+女人：“真的吗，那你是怎么爱我的？”  &lt;br /&gt;
+我：“… !!!”&lt;/p&gt;
+
+&lt;p&gt;生活中太多太多这样的片段，我都是没法去应答。  &lt;br /&gt;
+这说明我平时在生活中，没有去留意和用心关怀家人，每每，内心都非常的惭愧。 &lt;br /&gt;
+每人每天时间是恒定的，当用心关注于某一事物时，势必减少另外的时间。  &lt;br /&gt;
+非常感谢家人对我的支持和理解，并默默的营造更多的空间。  &lt;br /&gt;
+一个温馨的家，是成功的的基石。&lt;/p&gt;
+
+&lt;p&gt;记忆就像一幅幅画面，可以随时在脑中放映。   &lt;br /&gt;
+每个人经历的不一样，思考也不一样。   &lt;br /&gt;
+只有经历过了才属于自己的，记录了更成永恒的回忆。&lt;/p&gt;
+</content>
+ </entry>
+ 
+ <entry>
+   <title>我是团队中最有经验的工程师之指导</title>
+   <link href="http://kuang.io/i-am-the-most-experienced-team-of-engineers-guidance"/>
+   <updated>2012-11-23T00:00:00+08:00</updated>
+   <id>http://kuang.io/i-am-the-most-experienced-team-of-engineers-guidance</id>
+   <content type="html">&lt;p&gt;在带领团队时，即要担任领导角色，也需要当好教训，指导成员成长。   &lt;br /&gt;
+领导团队，做好服务，检查工作，及为团队扫清障碍。    &lt;br /&gt;
+致力营造一个环境： 人们可以互相学习，不必害怕犯错误，而这些错误是需要及时发现，纠正去总结。&lt;/p&gt;
+
+&lt;p&gt;另外，做为团队中最有经验的工程师，需要不断的指导团队，把自己所获得的技能教给他们。   &lt;br /&gt;
+但这种一件很艰难的事情，往往会产生一些沮丧。  &lt;br /&gt;
+因为人家好像总不相信您所说的，我们认为这是自己积累下来的非常宝贵的经验，但人家并不领情，觉得这没什么大不了的。但当他犯同样错误时，才开始意识到您的正确性，并再次吸收您的观念。   &lt;br /&gt;
+其实，这是情理之中的事情，不必为此生气，也不要因为人家不听您的而认为孺子不可教，从而低估他人。人们去“检验”他们所获取的知识，这是非常好的现象，并不只是去一味接收而缺少自己的思考。而且通过自己的试错，会更加尊重自己所学的知识。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;所以，我们需要在传授经验的同时，鼓励大家犯点错误，或者故意设计“坑”，让他们去跳。但需要建立一种氛围，及时总结，不然错误真个儿白犯了。&lt;/strong&gt;   &lt;br /&gt;
+例如：&lt;br /&gt;
+前段时间，我们团队老人带教新人时，一个项目因任务拆分不够合理，影响到新人找不到下手点。   &lt;br /&gt;
+其实在开始，我在团队中反复讲述，在一个新模块开发时，给新任务分解时，尽量细化并且明确，引导新人一步步上手，而不要一大块块的拆分。     &lt;br /&gt;
+而带教师父们，认为不需要这么细化，他们应该要学会将复杂的问题简化，分解去实现。我当时心想，对于刚毕业的小伙子主动引导为重，但没强制去要求必须要这样去分解。      &lt;br /&gt;
+事后，他们碰盯子了，才吸引这个经验。      &lt;br /&gt;
+题外话：将心比心，想想我们刚出来工作时，上面安排下来的任务犹如圣旨（特别是在考核期内），脑子里就想着怎么快速交货怎么弄，但如碰业务背景复杂估计不但压力山大而且没有产生。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;作为指导者，我们仅仅需要提供一些选择，让他人去思考这些选择的结果。但我们很容易就会溜回到领导的角色上，开始做决策，并剥夺其他人独立思考和尝试的机会。&lt;/strong&gt;     &lt;br /&gt;
+就如上述，我们很容易以领导的角色，强行要求得细化。结果是当事人，都还不明白为什么要这么做，这中间存在些什么问题？那么谈何积累经验？&lt;/p&gt;
+
+&lt;p&gt;如果让团队成员都主动思考，“检测”他们所听到的信息，指导将成为领导工作中最有价值的方面之一 。&lt;/p&gt;
+</content>
+ </entry>
+ 
+ <entry>
+   <title>暗时间</title>
+   <link href="http://kuang.io/drak-time-1"/>
+   <updated>2012-11-22T00:00:00+08:00</updated>
+   <id>http://kuang.io/drak-time-1</id>
+   <content type="html">&lt;p&gt;善于利用思维时间的人，可以无形中比别人多出很多时间，从而实际意义上能比别人多活很多年。我们经常说“心理年龄”这个词，思考得多的人，往往心理年龄更大。&lt;/p&gt;
+
+&lt;p&gt;有人用10年才能领悟一个道理，因为他们是被动领悟——只有当现实重重撞到脸上的时候才感到疼，疼完了之后还是不记得时时提醒自己，结果很快时过境迁后抛之脑后，等到第二次遇到同一个坑的时候早忘记曾经跌过跟头了，像这样的学习效率，除非天天摔坑，否则遗忘的效率总是大过吃亏的记性。善于利用思维时间的人则能够在重要的事情上时时主动提醒自己，将临时的记忆变成硬编码的行为习惯。&lt;/p&gt;
+
+&lt;p&gt;如果我们有做总结的习惯，在度过一段时间之后总结自己在某某领域的投入了多少时间，建议千万不要粗略地计算有多少天下班后拿起书来翻看过，或者看过某些专家的文章及瞄过几行代码。因为这样会发现，书经常翻，文章经常看，代码不少读，但领域却不见得多深，表面上花的时间不少，收益却不见得那么大。因为犹如看书并记住书中的东西只是记忆，并没有涉及推理。只有靠推理才能深入理解一个事物，看到别人看不到的地方，这部分推理的过程就是你的思维时间，也是人一生中占据一个显著比例的“暗时间”，当我们在走路、买菜、洗脸洗手、坐公交或地铁、吃饭、睡觉，上洗手间，所有这些时间都可以成为“暗时间”，我们可以充分利用这些时间进行思考，反刍和消化平时看和读的东西，让我们的认识能够脱离照本宣科的层面。这段时间看起来微不足道，但日积月累会产生庞大的效应。&lt;/p&gt;
+
+&lt;p&gt;有时我们经常会看到或听到，某某牛人在多个领域都是非常卓越，我一直会好奇，这些家伙到底哪来的时间，居然可以在不止一个领域做到卓越？     &lt;br /&gt;
+像我们程序员都会清楚，在进行任务切换需要耗费额外的花费，用于保留当时现场便于再切回来。大脑思考也是如此，如果只做一件任务，就不会有损失。这就是为什么专注的人比不专注的人在时间利用效率上高得多的原因，任务切换的暗时间看似非常不明显，但日积月累起来就会发现，消耗在切换上的时间越来越多。&lt;/p&gt;
+
+&lt;p&gt;我们工作中经常会出现这样情景，在写了一会儿代码后，忽然感到一阵无聊，忍不住会找开浏览器上上微博，看看QQ空间，10分钟后想起来需要继续工作，再切换回来，但要回复到当时的理想的状态，却需要一段时间来努力去集中精力，把记忆中相关的知识全都激活起来，从而才能进入“状态”，因为我们上了10分钟网之后这些记忆已经抑制了。如果这个“热身”状态需要一刻钟，那么看似10分钟的上网闲看其实就花费了25分钟。&lt;/p&gt;
+
+&lt;p&gt;因此我们需要一个高效的习惯：搞干扰。只有具备超强的搞干扰能力，才能有效的利用前面提到的种种暗时间。&lt;/p&gt;
+
+&lt;p&gt;我爸经常问我一个问题：“每天上下班地铁上四五十分钟怎么过的？“，我说：“看书或睡觉“。他很疑惑，地铁人多又挤而且晃能看书进吗？      &lt;br /&gt;
+我坐地铁偶尔会坐过站，也只会在上述二种的情况下会出现，书是能看得进的。   &lt;br /&gt;
+另外，经常利用各种碎片时间阅读和思考，对迅速集中注意力和保持注意力都非常有帮助。   &lt;br /&gt;
+我不知道从什么时候开始喜欢上”马桶时间“，我会在这个时候思考很多问题，很多想法会产生。最早记忆在大学时期（可能那时我才开始会思考问题），那时我们几个朋友经常去主动做项目，会碰到很多未知问题，后发现一些难点在”马桶时间“我突然会有很好的思路去解决，即使现在也这样。&lt;/p&gt;
+
+&lt;p&gt;非常喜欢一句话：&lt;strong&gt;专注成就专业&lt;/strong&gt;    &lt;br /&gt;
+暗时间的利用也是专注的一种体现。&lt;/p&gt;
+</content>
+ </entry>
+ 
+ <entry>
+   <title>孙陶然说，什么样的人有潜力？</title>
+   <link href="http://kuang.io/how-people-have-potential"/>
+   <updated>2012-11-20T00:00:00+08:00</updated>
+   <id>http://kuang.io/how-people-have-potential</id>
+   <content type="html">&lt;p&gt;孙陶然在&lt;a href=&quot;http://www.amazon.cn/gp/product/B006MQI38C/ref=as_li_ss_tl?ie=UTF8&amp;amp;tag=kqy929&amp;amp;linkCode=as2&amp;amp;camp=536&amp;amp;creative=3132&amp;amp;creativeASIN=B006MQI38C&quot;&gt;《创业36条军规》&lt;/a&gt;中提到识别人才最主要的三条标准：  &lt;br /&gt;
+1. &lt;strong&gt;事业心&lt;/strong&gt;：他们认为自己是在做事业而非上班，关注发展而非工资，对收入斤斤计较的多半不行。  &lt;br /&gt;
+2. &lt;strong&gt;有韧劲&lt;/strong&gt;：夸夸其谈、眼高手低、先要头衔不想动手的基本没戏，跳槽多的人基本上很难成大器，只有那些百折不挠、善于坚持的人才可能成功。  &lt;br /&gt;
+3. &lt;strong&gt;善总结&lt;/strong&gt;：有悟性，爱学习，经常自我复盘，善于观察学习同事的长处，不在同一类沟里翻船两次。&lt;/p&gt;
+
+&lt;p&gt;公司里80%以上的问题不是因为能力不足而是因为不负责任，80%不负责任是因为对“责任”理解不到位。&lt;/p&gt;
+
+&lt;p&gt;那些喜欢讲理由找借口、不认真去理解上级意图、事事请示或关键问题不汇报等，都是不负责任的表现。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;负责任首先意味着拿回结果，而且是按照当初计划的意图拿回结果，如果发现拿不回结果一定要第一时间如实上报。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;–  &lt;br /&gt;
+对自己提出更高的要求，也不要自我设限。&lt;/p&gt;
+</content>
+ </entry>
+ 
+ <entry>
+   <title>KISS 方法 — 单纯的，简单的</title>
+   <link href="http://kuang.io/kiss-simple-pure-method"/>
+   <updated>2012-11-19T00:00:00+08:00</updated>
+   <id>http://kuang.io/kiss-simple-pure-method</id>
+   <content type="html">&lt;p&gt;KISS 这四个字母是由“Keep It Simple, Stupid” 这句话中每个单词的首字母构成。它是美国的一句俗语，据说是从军队用语中演变而来的。大概是当部下做得不好的时候，长官就用大声训斥：“简单点！笨蛋！”&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;KISS 正是工程学的基本思考方法。&lt;/strong&gt;&lt;br /&gt;
+###有时间想做不下去，还不如快点做&lt;br /&gt;
+无论做什么事情，在计划开始实行之前或者是实行到一半的时候，一定会有消极的人这样说：&lt;br /&gt;
+&amp;gt; “这个太困难了，一定做不好”    &lt;br /&gt;
+“应该有更好的办法吧”    &lt;br /&gt;
+“这个太难用了，换一个吧”&lt;/p&gt;
+
+&lt;p&gt;在英语中有个词叫“Naysayer”。Nay就是No，这个词的的意思是“说不的人”。   &lt;br /&gt;
+我喜欢做一个坚持到底的人（也是我工作中几年才慢慢养成），不坚持发现慢慢失出越来越多。   &lt;br /&gt;
+有时，我们会经常翻来覆去在想一些做不下去的理由，还不如快点做。真要是做到最后不行，那时候再说做不去。&lt;/p&gt;
+
+&lt;p&gt;这想起我们老大（东风）说的一句话：“与其抱怨下属这不行，那没干好，还不如培养他拿A”。也是同样的道理。&lt;/p&gt;
+
+&lt;p&gt;最近由于团队成员人员不断增多，杂事也随之增加，发现自己时间碎片化越发严重。     &lt;br /&gt;
+于是采用同事推荐的teamcola做时间记录工具（推荐下，简单易用），只有将时间流水记录下来，才能从中发现规律和去总结，例如：   &lt;br /&gt;
+* 哪些事情不需要去参与  &lt;br /&gt;
+* 哪些事情根本不重要的   &lt;br /&gt;
+* 哪些时间段处理某类问题效率更高，等等&lt;/p&gt;
+
+&lt;p&gt;时间管理得从记录开始。但刚开始的时候，我们并不能从中发现规律，来来回回就哪些类型的事情，谈不上哪个更优先或更紧急。团队其他成员可能碎片时间不多，更觉得记录意义不大。&lt;br /&gt;
+但坚持后一段时间后，会发现，过往历史再回顾时，一个个片段非常深刻。而如未记录，人的记忆一般超过7天就会淡忘。&lt;/p&gt;
+
+&lt;p&gt;###坚持到了最后，就会明白失败的原因&lt;br /&gt;
+我们在做事的时候，经常是还没完成就想“这个做不好，那个也有问题的”。而想的这些就成了绊脚石，不要自我设限。    &lt;br /&gt;
+&lt;strong&gt;其实做事只要坚持到最后，就算不成功也会学到很多。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;在工作中，经常会碰到一些同事，容易产生依赖心理，只要团队中有更强的人，当出现不能解决的问题时，就将责任转移至他人身上。而自己往往错失了成长的机会。    &lt;br /&gt;
+我是挺愿意去尝试，也鼓励大家去尝试，哪怕是犯些错误，甚至制造一些重蹈覆辙的问题，但是在可控范围内。&lt;/p&gt;
+
+&lt;p&gt;前段时间我犯了一个错误，负责的一个项目，也因我部分产生这样的心理，导致差点问题严重下去。还好，我们老大及时指正。当时脑子惯性去思考，能让对方多承担一点，自己就不想去折腾了。也未去评估其中的风险，首先对方并不在我们的掌握范围内，风险是不好控的。其次在我们WEB开发领域，对方也不是强项。最后如果出现问题后，沟通和排查问题的成本高。这样依赖或责任转移，只能将风险放得更大。&lt;/p&gt;
+
+&lt;p&gt;我们团队中，一位同事也是。让他尝试带位新人，中途，可能由于本身他活多，照顾不到；也因没有太多经验，带得累；差点就想赖皮了，还好，扛下去了。    &lt;br /&gt;
+虽说最后没有想象中的成功，但已学到不少。当下次团队中有新人时，估计得称应手。    &lt;br /&gt;
+也让他从另外的视角去认识自己，而后工作中，思维逐步发挥。&lt;/p&gt;
+
+&lt;p&gt;###别想乱七八糟的方法  &lt;br /&gt;
+我们不需要去设计“巧妙”的方法，或者一定追求最佳实践模式，直接去解决问题才是最好的。   &lt;br /&gt;
+昨天我们有一次产品讨论会，在讨论会上，各位老大给产品经理提不同意见。产品经理觉得这个可行，那个需要。结果不断的将产品逻辑及流程越来越复杂。&lt;br /&gt;
+这时产品总监说了一句话：“我们如果什么都不做，这个问题能解决吗？你们把产品想得太复杂了，可以先制定出相关的规则去运营，用最简单的方式，让大家先用起来，然后我们收集反馈再去优化产品。”       &lt;br /&gt;
+其实是可以的，我们只是在照顾每个人说得都有理的需求上，不得不去设计“巧妙”方案，解决这中间的问题。     &lt;br /&gt;
+在软件设计上，同样大家在为“巧妙”的方法绞尽脑汁，生搬硬套。最典型的所谓要面向接口，而不是面向实现。但问起：    &lt;br /&gt;
+&amp;gt;“你有几个实现类？”   &lt;br /&gt;
+“只有一个”   &lt;br /&gt;
+“哪为什么要整个接口呢，你这并不同体现多态特性？”    &lt;br /&gt;
+“为了将来扩展”&lt;/p&gt;
+
+&lt;p&gt;在我们大部分的简单互联网的WEB开发中，很少会存在需要具备良好可扩展性。往往当需求变更时，都在原有基础上修改或者重写了当前方法。    &lt;br /&gt;
+我现项目中都没有接口概念，如果要有平滑（老方法仍在使用）扩展时，直接新建一个同样的方法或页面，例如：show.jsp, show2.jsp 等等。当切换完后，再干掉老的。    &lt;br /&gt;
+现流行的ROR或nodejs等等快速开发框架，都是直接有效的解决问题，没有那么多接口，也没有那么多职责类似的类存在（像j2EE中的DAO层等等）&lt;/p&gt;
+
+&lt;p&gt;以前也有一次，为了将许多相同逻辑整成通用组件，同时要照顾到页面各种编辑的不同特性。花费大量时间去精力设计一个具体可扩展的模型，各种设计模式的结合（桥梁，装饰，工厂等等），当时还满有成就感的，哇，能将这么多设计模式结合使用。     &lt;br /&gt;
+三天过后，结构出来了，也从兴奋中冷却后发现。如果我就设计一个配置文件，将变化特性的包括进来。建立一套标准，以不变就万变了，这事情原来可以这么的简单。&lt;/p&gt;
+</content>
+ </entry>
+ 
+
+</feed>

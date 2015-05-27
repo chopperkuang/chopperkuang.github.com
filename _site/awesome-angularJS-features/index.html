@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+  <head>
+  <link href="http://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+
+  <!-- Enable responsiveness on mobile devices-->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="author" content="闷骚乔巴" />
+  <meta name="description" content="闷骚乔巴的博客" /> 
+  <title>
+    
+      angularjs五个最棒的特点 &middot; 闷骚乔巴
+    
+  </title>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="/public/css/poole.css">
+  <link rel="stylesheet" href="/public/css/syntax.css">
+  <link rel="stylesheet" href="/public/css/lanyon.css">
+  <link rel="stylesheet" href="/public/css/io.css">
+    <link rel="stylesheet" href="http://fonts.lug.ustc.edu.cn/css?family=PT+Serif:400,400italic,700|PT+Sans:400,400">
+
+  <!-- Icons -->
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/public/apple-touch-icon-precomposed.png">
+  <link rel="shortcut icon" href="/public/favicon.ico">
+
+  <!-- RSS -->
+  <link rel="alternate" type="application/rss+xml" title="RSS" href="/atom.xml">
+
+  <!-- GA -->
+  <script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-63143391-1', 'auto');
+    ga('send', 'pageview');
+
+  </script>
+</head>
+
+
+  <body>
+
+    <!-- Target for toggling the sidebar `.sidebar-checkbox` is for regular
+     styles, `#sidebar-checkbox` for behavior. -->
+<input type="checkbox" class="sidebar-checkbox" id="sidebar-checkbox">
+
+<!-- Toggleable sidebar -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-item">
+    <p><a href="http://kuang.io" target="_blank">闷骚乔巴</a> （闷骚IT男）</p>
+  </div>
+
+  <nav class="sidebar-nav">
+    <a class="sidebar-nav-item" href="/">主页</a>
+
+    
+
+    
+    
+      
+        
+      
+    
+      
+        
+          <a class="sidebar-nav-item" href="/about.html">About</a>
+        
+      
+    
+      
+    
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+
+    <a class="sidebar-nav-item" href="https://github.com/chopperkuang">GitHub project</a>
+    <span class="sidebar-nav-item">Currently v1.0.0</span>
+  </nav>
+
+  <div class="sidebar-item">
+    <p>
+      &copy; 2015. All rights reserved.
+    </p>
+  </div>
+</div>
+
+
+    <!-- Wrap is the content to shift when toggling the sidebar. We wrap the
+         content to avoid any CSS collisions with our real content. -->
+    <div class="wrap">
+      <div class="masthead">
+        <div class="container">
+          <h3 class="masthead-title">
+            <a href="/" title="Home">闷骚乔巴</a>
+            <small></small>
+          </h3>
+        </div>
+      </div>
+
+      <div class="container content">
+        <div class="post">
+  <h1 class="post-title">angularjs五个最棒的特点</h1>
+  <span class="post-date">2013-03-26</span>
+  <p><strong>简单的说：angularjs 是全新的，功能强大的客户端技术，提供一种强大的构建动态WEB应用设计 结构框架，通过扩展HTML的语法，让你能更清楚、简洁地构建你的应用组件。它克服HTML在构建应用上的不足而设计的。HTML是一门很好的为静态文本展示设计的声明式语言，但要构建WEB应用的话它就显得乏力了。</strong></p>
+
+<p>###特点1： 双向数据绑定<br />
+数据绑定是angularjs中最酷，最实用的功能。这将节省你相当数量的代码。典型的Web应用程序可能包含其80%的代码，专门用于遍历、操作和监听DOM。数据绑定使这些代码消失，这样可以专注于你应用程序中的业务实现。</p>
+
+<p>在应用程序中，只要将Model做为唯一对象关注就可以了，进行更新和读取。而数据绑定指令提供将Model到View的映射，这个映射是无缝的，无需应用程序做任何的操作。只要当Model发生变化后，View也会立马变更。反之，当View变更后，Model也会随之更新，这个是双向作用，并且是无缝结合。</p>
+
+<p>传统上，当Model发生变化后，开发者需要手工操作DOM节点和属性来反映出其变化。反之，视图上的任何变化也无法自动的作用于Model上。如图所示：</p>
+
+<p><img src="http://docs.angularjs.org/img/One_Way_Data_Binding.png" alt="Alt text" /></p>
+
+<p>angularjs 双向数据绑定改变这一切，让操作变化如此简单：</p>
+
+<p><img src="http://docs.angularjs.org/img/Two_Way_Data_Binding.png" alt="Alt text" /></p>
+
+<iframe width="100%" height="300" src="http://jsfiddle.net/chopperkuang/xJzhG/9/embedded/" frameborder="0"> </iframe>
+
+<p><img src="http://devgirl.org/wp-content/uploads/2013/03/concepts-controller.png" alt="Alt text" /></p>
+
+<p>###特点2： 模板<br />
+在angularjs中，模板只是普通的HTML，这个HTML模板会被浏览器解析成DOM，并且angularjs会将该DOM进行编译。</p>
+
+<p>在angularjs遍历这个DOM模板进行渲染称之为指令，总这，这些指令负责数据-视图的绑定。负责“连续地”更新，不需要模板和数据的重新合并.</p>
+
+<p>我们需要重要认识到的是，angularjs操作是字符串的模板，但却是使用DOM进行输入，而不是HTML字符串。数据绑定就是DOM结构的转换，而不是字符串的拼接和通过innerHTML进行将视图变化。使用DOM的输入，而不是字符串。</p>
+
+<p>angularjs 最大的差异在于，还有其他的子框架，允许开发者进行扩展，自定义指令，这样就可以封装成可重用的组件。</p>
+
+<p>这种最大的优点在于：使设计者和开发者更好的合作，设计者通过HTML切成页面，而开发者就在此基础上进行少量变更就能将数据进行展示，无需太大的工作。</p>
+
+<p>上述例子中的ng-repeat指令就是将多条数据进行循环展示。</p>
+
+<p>另外一个好处，就是无需学习新的模板语言。</p>
+
+<p>###特点3： MVC<br />
+angularjs是结合最基本的MVC设计模式构建客户端WEB应用。但不是传统意义上的MVC，而是MVVM（Model - View - ViewModel）。<br />
+#### Model<br />
+Model就是应用程序中的数据，一些普通的javascript对象，无需继续某类，或者包裹在代理类中，或者通过getter/setter访问。这是非常棒的一种体验，减少了应用程序的复杂度。</p>
+
+<h4 id="viewmodel">ViewModel</h4>
+<p>一个视图模板对象，它提供具体的数据和方法关联到对应的视图上。<br />
+viewmodel在angularjs中可以理解为$scope对象。$scope就是一个简单的javascript对象，这是很精简的API。当对象发现变化时，广播和通知相应的善状态。</p>
+
+<h4 id="controller">Controller</h4>
+<p>该Controller负责初始化状态和添加$scope的方法控制行为，但值得一提的是，控制器并不存储状态，在多个控制器状态不共享。<br />
+详细的控制器介绍，可以看这篇中文文档：<a href="http://www.angularjs.cn/A00C">AngularJS开发指南17：Controller组件</a></p>
+
+<h4 id="view">View</h4>
+
+<p>###特点4： 依赖注入<br />
+angularjs创建一套依赖注入方式，帮助开发者在构建系统时更易开发，理解和测试。<br />
+依赖注入(DI)，你只要”喊”出你的依赖，而不需要去寻找和构建依赖对象。就如 “嗨，我需要一把斧子”，DI就会帮你制造一把斧子并且提供给你。</p>
+
+<div class="highlight"><pre><code class="language-javascript" data-lang="javascript"><span class="kd">function</span> <span class="nx">EditCtrl</span><span class="p">(</span><span class="nx">$scope</span><span class="p">,</span> <span class="nx">$location</span><span class="p">,</span> <span class="nx">$routeParams</span><span class="p">)</span> <span class="p">{</span>
+     <span class="c1">// Something clever here...</span>
+<span class="p">}</span></code></pre></div>
+
+<p>你也可以构建自己的服务，注入到需要的地方。</p>
+
+<div class="highlight"><pre><code class="language-javascript" data-lang="javascript"><span class="nx">angular</span><span class="p">.</span>
+    <span class="nx">module</span><span class="p">(</span><span class="s1">&#39;MyServiceModule&#39;</span><span class="p">,</span> <span class="p">[]).</span>
+    <span class="nx">factory</span><span class="p">(</span><span class="s1">&#39;notify&#39;</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;$window&#39;</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">win</span><span class="p">)</span> <span class="p">{</span>
+    	<span class="k">return</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">msg</span><span class="p">)</span> <span class="p">{</span>
+        	<span class="nx">win</span><span class="p">.</span><span class="nx">alert</span><span class="p">(</span><span class="nx">msg</span><span class="p">);</span>
+	    <span class="p">};</span>
+	<span class="p">}</span>
+<span class="p">]);</span>
+
+<span class="kd">function</span> <span class="nx">myController</span><span class="p">(</span><span class="nx">$scope</span><span class="p">,</span> <span class="nx">notify</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">$scope</span><span class="p">.</span><span class="nx">callNotify</span> <span class="o">=</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">msg</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">notify</span><span class="p">(</span><span class="nx">msg</span><span class="p">);</span>
+    <span class="p">};</span>
+<span class="p">}</span></code></pre></div>
+
+<p>###特点5： 指令<br />
+angularjs指令是我非常喜欢的一个功能点。你有没有想过，让您的浏览器会做新的技巧呢？好了，现在就可以了！  <br />
+这是最喜欢angularjs其中之一，这也可能是最具有挑战性的。</p>
+
+<p>指令可用来创建我自定义的HTML标签，作为新的自定义组件。它们也可以用来“装饰”元素上的行为，并以有趣的方式进行DOM操作。</p>
+
+<p>下面一个简单的例子，一个监听事件，并且更新Model</p>
+
+<div class="highlight"><pre><code class="language-javascript" data-lang="javascript"><span class="nx">myModule</span><span class="p">.</span><span class="nx">directive</span><span class="p">(</span><span class="s1">&#39;myComponent&#39;</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span><span class="nx">mySharedService</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="nx">restrict</span><span class="o">:</span> <span class="s1">&#39;E&#39;</span><span class="p">,</span>
+        <span class="nx">controller</span><span class="o">:</span> <span class="kd">function</span><span class="p">(</span><span class="nx">$scope</span><span class="p">,</span> <span class="nx">$attrs</span><span class="p">,</span> <span class="nx">mySharedService</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">$scope</span><span class="p">.</span><span class="nx">$on</span><span class="p">(</span><span class="s1">&#39;handleBroadcast&#39;</span><span class="p">,</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
+                <span class="nx">$scope</span><span class="p">.</span><span class="nx">message</span> <span class="o">=</span> <span class="s1">&#39;Directive: &#39;</span> <span class="o">+</span> <span class="nx">mySharedService</span><span class="p">.</span><span class="nx">message</span><span class="p">;</span>
+            <span class="p">});</span>
+        <span class="p">},</span>
+        <span class="nx">replace</span><span class="o">:</span> <span class="kc">true</span><span class="p">,</span>
+        <span class="nx">template</span><span class="o">:</span> <span class="s1">&#39;&lt;input&gt;&#39;</span>
+    <span class="p">};</span>
+<span class="p">});</span></code></pre></div>
+
+<p>然后，你可以像这样使用指令：</p>
+
+<div class="highlight"><pre><code class="language-html" data-lang="html"><span class="nt">&lt;my-component</span> <span class="na">ng-model=</span><span class="s">&quot;message&quot;</span><span class="nt">&gt;&lt;/my-component&gt;</span></code></pre></div>
+
+<p>拥有该特征后，你可以将应用程序按不同的组件编写，然后可以随意添加、删除及更新。very cool.</p>
+
+<p>###奖励特点： 路由、过滤器、测试<br />
+未完待续。。。</p>
+
+<p>以上我只是简单的介绍，详细可以看<a href="http://angularjs.org/">angularjs官网的教程</a>，也有不错的<a href="http://www.angularjs.cn/">angularjs中文版</a>。</p>
+
+</div>
+
+<div id="disqus_container">
+    <div id="disqus_thread"></div>
+</div>
+
+<div class="related">
+  <h2>Related Posts</h2>
+  <ul class="related-posts">
+    
+      <li>
+        <h3>
+          <a href="/tomcat-jdbc-pool-simple-source">
+            tomcat-jdbc-pool 实现简单分析
+            <small>2015-05-22</small>
+          </a>
+        </h3>
+      </li>
+    
+      <li>
+        <h3>
+          <a href="/self-management-by-drucker">
+            管理自己—《哈佛商业评论》重印次数最多的文章之一
+            <small>2015-03-02</small>
+          </a>
+        </h3>
+      </li>
+    
+      <li>
+        <h3>
+          <a href="/management-X-and-Y">
+            管理思维启蒙的X,Y,Z理念
+            <small>2015-01-13</small>
+          </a>
+        </h3>
+      </li>
+    
+  </ul>
+</div>
+
+<script type="text/javascript">
+    /* * * CONFIGURATION VARIABLES * * */
+    var disqus_shortname = 'kuangio';
+    
+    /* * * DON'T EDIT BELOW THIS LINE * * */
+    (function() {
+        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+        dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+</script>
+
+      </div>
+    </div>
+
+    <label for="sidebar-checkbox" class="sidebar-toggle"></label>
+
+    <script>
+      (function(document) {
+        var toggle = document.querySelector('.sidebar-toggle');
+        var sidebar = document.querySelector('#sidebar');
+        var checkbox = document.querySelector('#sidebar-checkbox');
+
+        document.addEventListener('click', function(e) {
+          var target = e.target;
+
+          if(!checkbox.checked ||
+             sidebar.contains(target) ||
+             (target === checkbox || target === toggle)) return;
+
+          checkbox.checked = false;
+        }, false);
+      })(document);
+    </script>
+  </body>
+</html>

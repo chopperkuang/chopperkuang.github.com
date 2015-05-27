@@ -1,0 +1,29 @@
+# Markdown
+markdown:  kramdown
+kramdown:
+  input:  GFM
+  syntax_highlighter:  rouge
+
+# Permalinks
+permalink:           /:title
+relative_permalinks: true
+
+# Setup
+title:               闷骚乔巴
+tagline:             ''
+description:         '<a href="http://kuang.io" target="_blank">闷骚乔巴</a> （闷骚IT男）'
+url:                 http://kuang.io
+baseurl:             ''
+paginate:            15
+
+# About/contact
+author:
+  name:              chopperkuang
+  url:               http://kuang.io
+
+# Custom vars
+version:             1.0.0
+
+# Github
+github:
+  repo:			 https://github.com/chopperkuang
