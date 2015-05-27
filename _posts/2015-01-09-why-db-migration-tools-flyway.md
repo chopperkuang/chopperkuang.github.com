@@ -16,7 +16,7 @@ category: blog
 ### 简单，好用
 先前有用过mybatis中的migration，但经常出现莫名其名的异常，并且也不支持多条SQL在1个文件中。    
 最开始在使用flyway时，没有downgrade。有些觉得奇怪，像mybatis的migration和rails中，都会支持。   
-后来想想，其实对数据库的downgrade真是要甚用（最好不用），会陷入麻烦，不清楚真实的版本变化。宁可重新写个script downgrade。
+后来想想，其实对数据库的downgrade真是要慎用（最好不用），会陷入麻烦，不清楚真实的版本变化。宁可重新写个script downgrade。
 
 ### 支持java调用及spring集成
 这就能在应用程序中，直接进行管理。  
