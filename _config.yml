@@ -1,5 +1,5 @@
 # Markdown
-markdown: kramdown
+markdown: redcarpet2
 #kramdown:
 #  input: GFM
 #  syntax_highlighter: rouge
