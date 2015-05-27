@@ -1,5 +1,7 @@
 # Markdown
-markdown: redcarpet2
+markdown: redcarpet
+redcarpet:
+  extension: ["smart"]
 #kramdown:
 #  input: GFM
 #  syntax_highlighter: rouge
