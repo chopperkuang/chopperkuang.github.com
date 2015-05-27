@@ -45,6 +45,14 @@ _不用去找那么多类，连接的管理都在`ConnectionPool`中。_
 技术文章写得比较少，正在不断练习中。  
 还是直接贴源码，这些源码注释还不错，最好的技术文档了。有空可以多去读读。   
 
+```js
+    var body = 'hello world';
+    response.writeHead(200, {
+        'Content-Length': body.length,
+        'Content-Type': 'text/plain'
+    });
+```
+
 #### borrowConnection
 ```java
 /**
