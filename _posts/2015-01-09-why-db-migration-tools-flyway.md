@@ -71,8 +71,6 @@ public class DbMigration {
 
 ## SQL Script 命名
 
-![image]({{ site.url }}/images/migrate_naming_1.png)  
-
 ### script 目录
 flyway执行时，默认读取的目录是`classpath:/db/migration`  
 我们项目中就放在`/resource/db/migration`  
@@ -86,5 +84,6 @@ flyway执行时，默认读取的目录是`classpath:/db/migration`
 * description: 描述（你懂得，必须要有意义）   
 * suffix: 后缀 default: `.sql`    
 
+例如：`V1_1__create_table_test.sql`
 
 **再也不用担心，各环境的数据库不一致了。**
