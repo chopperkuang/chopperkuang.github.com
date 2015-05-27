@@ -1,8 +1,8 @@
 # Markdown
 markdown: kramdown
-kramdown:
-  input: GFM
-  syntax_highlighter: rouge
+#kramdown:
+#  input: GFM
+#  syntax_highlighter: rouge
 
 # Permalinks
 permalink:           /:title
