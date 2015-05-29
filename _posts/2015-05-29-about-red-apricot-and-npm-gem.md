@@ -40,7 +40,7 @@ or
 
 ### 何为公益代理
 只供开发人员使用，是免费的。目前暂只支持的域名如下：
-```html
+>
 android.com    
 s3.amazonaws.com  
 bitbucket.org  
@@ -83,7 +83,7 @@ rubygems.org
 repo.typesafe.com  
 tromey.com  
 9fans.net  
-```
+
 
 ### 郑重推荐使用红杏
 [红杏](http://honx.in/_VAafG-z5ND6_19m-)非常简单好用的工具，省时省力。可以轻松管理需要代理的域名，对于不可访问的域名，智能提示。身边同事差不多人手一个。
