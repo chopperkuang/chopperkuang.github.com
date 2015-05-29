@@ -26,6 +26,7 @@ category: blog
 想熟悉池的设计，可以仔细读读tomcat-jdbc-pool，非常快速的入手。在dbcp2的实现时，跟tomcat-jdbc-pool思路一致（完全copy的版本）
 
 对于连接池来说，最基本的特点就是：  
+
 - 有一定的容量，及已经创建好的对象
 - 有“借”有“还”操作的接口
 
