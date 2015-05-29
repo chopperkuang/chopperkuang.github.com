@@ -18,71 +18,71 @@ category: blog
 hostname: `hx.gx`  
 port:`1080`  
 
-**github加速**
+**github加速**  
 `git config --global http.proxy http://hx.gy:1080`
 
-**npm加速**
-For `HTTP`:
+**npm加速**  
+For `HTTP`:  
 ```ruby
 npm config set strict-ssl false
 npm config set proxy http://hx.gy:1080
 npm install xxx
 ```
-or
+or  
 `npm --proxy http://hx.gy:1080 install`
 `npm --proxy http://hx.gy:1080 --without-ssl --insecure -g install`
 
-**gem加速**
+**gem加速**  
 `gem install -p http://hx.gy:1080 compass`
 
-**各类IDE加速**
+**各类IDE加速**  
 直接在IDE的proxy中配置http代理可以了
 
 ### 何为公益代理
 只供开发人员使用，是免费的。目前暂只支持的域名如下：
 ```html
-android.com
-s3.amazonaws.com
-bitbucket.org
-bintray.com
-chromium.org
-clojars.org
-registry.cordova.io
-dartlang.org
-download.eclipse.org
-marketplace.eclipse.org
-github.com
-githubusercontent.com
-golang.org
-googlesource.com
-storage.googleapis.com
-code.google.com
-googlecode.com
-dl.google.com
-dl-ssl.google.com
-getcomposer.org
-gradle.org
-elpa.gnu.org
-gopkg.in
-ionicframework.com
-cordova.iriscouch.com
-plugins.jetbrains.com
-macports.org
-maven.org
-melpa.org
-packages.meteor.com
-mendeley.com
-nbd.name
-www.nuget.org
-npmjs.com
-npmjs.org
-pypi.python.org
-packagist.org
-packagecontrol.io
-rubygems.org
-repo.typesafe.com
-tromey.com
-9fans.net
+android.com    
+s3.amazonaws.com  
+bitbucket.org  
+bintray.com  
+chromium.org  
+clojars.org  
+registry.cordova.io  
+dartlang.org  
+download.eclipse.org  
+marketplace.eclipse.org  
+github.com  
+githubusercontent.com  
+golang.org  
+googlesource.com  
+storage.googleapis.com  
+code.google.com  
+googlecode.com  
+dl.google.com  
+dl-ssl.google.com  
+getcomposer.org  
+gradle.org  
+elpa.gnu.org  
+gopkg.in  
+ionicframework.com  
+cordova.iriscouch.com  
+plugins.jetbrains.com  
+macports.org  
+maven.org  
+melpa.org  
+packages.meteor.com  
+mendeley.com  
+nbd.name  
+www.nuget.org  
+npmjs.com  
+npmjs.org  
+pypi.python.org  
+packagist.org  
+packagecontrol.io  
+rubygems.org  
+repo.typesafe.com  
+tromey.com  
+9fans.net  
 ```
 
 ### 郑重推荐使用红杏
