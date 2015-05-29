@@ -23,13 +23,13 @@ port:`1080`
 
 **npm加速**  
 For `HTTP`:  
-```bash
+```ruby
 npm config set strict-ssl false  
 npm config set proxy http://hx.gy:1080  
 npm install xxx  
 ```
 or    
-```bash
+```ruby
 npm --proxy http://hx.gy:1080 install
 npm --proxy http://hx.gy:1080 --without-ssl --insecure -g install
 ```
