@@ -23,6 +23,7 @@ port:`1080`
 
 **npm加速**  
 For `HTTP`:  
+
 ```ruby
 npm config set strict-ssl false  
 npm config set proxy http://hx.gy:1080  
