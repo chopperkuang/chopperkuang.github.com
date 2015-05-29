@@ -1,320 +1,245 @@
 ---
 layout: post
 title: tomcat-jdbc-pool 实现简单分析
-description: 在现稍微大一点的软件系统开发中，都会接触到池。有时，并不是没有用到，而是没有去注意到。例如：内存池，线程池，连接池等各种各样的池（pool）
+description: 在现稍微大一点的软件系统开发中，都会接触到池。连接池是必备的。同时，对技术人员要求，对连接池的掌握也是必须的。这篇简单聊聊tomcat-jdbc-pool的设计。
 category: blog
 ---
 
-在现稍微大一点的软件系统开发中，都会接触到池。有时，并不是没有用到，而是没有去注意到。例如：内存池，线程池，连接池等各种各样的池（pool）。
+### 什么是连接池？
+池，不由自主的会想到水池。
 
-### 先聊聊池
-
-池，不由自主的会想到水池。  
 小时候，我们都要去远处的水井挑水，倒进家中的水池里面。这样，每次要用水时，直接从水池中“取”就行了。不用大老远跑去水井打水。
 
 数据库连接池就如此，我们预先准备好一些连接，放到池中。当需要时，就直接获取。而不要每次跟数据库建立一个新的连接。特别对数据库连接这类耗时，耗资源的操作。当连接用完后，再放回池中，供后续使用。
 
-从上可以简单看些，池的一些基本特征：  
-。池会有一定的容量，及已经创建好的对象  
-。有“借”有“还”操作的接口  
+### 连接池的作用？
+**避免多次去创建资源。**
+例如，创建新的数据库连接，500ms轻轻松松就消耗了。建立TCP连接，数据库账号验证等等。这性能消耗起来，可是非常大的。
 
-我先前有简单看过dbcp，c3po连接池的实现。相对于简单，精湛tomcat-jdbc-pool，还是复杂不少。
-tomcat-jdbc-pool基于jdk1.5后的线程池实现。所以你懂得。
+在稍大的系统内，连接池是必备的。同时，对技术人员要求，对连接池的掌握也是必须的。
 
-### 有借有还，再借不难
-俗话说：“有借有还，再借不难”。
-我们刨去各种初始化，各种花枝招展的包装以及一些简单逻辑的卫语句。直接去看看tomcat-jdbc-pool是怎么管理“借”的操作。
-`org.apache.tomcat.jdbc.pool.ConnectionPool borrowConnection()`
+### tomcat-jdbc-pool的特色
+基于jdk1.5后的并发实现。代码简洁，精练。核心的类就2，3个。
+对池的控制就在 `org.apache.tomcat.jdbc.pool.ConnectionPool` 中搞定。
 
-![image]({{ site.url }}/images/posts/20150524-tomcat-jdbc-pool-borrowConnection-2.png)  
+先前有简单看过 dbcp1.x, c3p0等等，代码量真不少，逻辑复杂。
+想熟悉池的设计，可以仔细读读tomcat-jdbc-pool，非常快速的入手。在dbcp2的实现时，跟tomcat-jdbc-pool思路一致（完全copy的版本）
 
-### 借了后怎么还
-在连接池中，是不会去关闭真实的数据库连接的。只将归还至可用的池中。  
-如果真实关闭数据库连接了，那连接池的又有什么用咧。。。
+对于连接池来说，最基本的特点就是：
+- 有一定的容量，及已经创建好的对象
+- 有“借”有“还”操作的接口
 
-![image]({{ site.url }}/images/posts/20150524-tomcat-jdbc-pool-returnConnection.png) 
+### 池中「借出」连接是怎么个过程？
+在`jdbc-pool`设计有2队列，分别为`busy`和`idle`，存储「正在使用」和「空闲」的连接。都采用`ArrayBlockingQueue`以保证线程安全。
 
-### 清除不良账务
-当访问高峰过时，我们会创建不少新的连接。   
-高峰过后，我们需要去清理可能暂不再会使用的连接，释放些资源。（如有需要，可再创建嘛。有借有还，这再借当然不难落。）   
-_不用去找那么多类，连接的管理都在`ConnectionPool`中。_     
-`PoolCleaner extends TimerTask`   
-在池的初始化时就进行注册，内部采用`scheduleAtFixedRate`方式，定时扫描`idle`队列中所有的空闲连接，进行释放（当然每个连接有标志其创建和最后将使用完成的时间。通过这些时间判断是否可以释放了）。
+当有请求「借」的动作过来时，从`idle`中`poll`一个连接，然后将该连接再`offer`至`busy`队列中。这是最基本最纯净的思路。
 
-#### 贴源码
-技术文章写得比较少，正在不断练习中。  
-还是直接贴源码，这些源码注释还不错，最好的技术文档了。有空可以多去读读。   
+当`idle`连接不够时，内部会再去创建新的连接返回给客户端。
 
-#### borrowConnection
+但是，**做为「池」必须的职责之一是控制总量，不会任你去增长。**
+
+**那么，有意思来了，他是怎么控制总量的咧？**
+
+我们可以通俗点称『占坑法』（tomcat中也有不少场景采用这方式）。  
+
+首先池中有维护连接数总量「计数器」（采用`AtomicInteger`保证线程安全，每次新增或销毁都会变更）。   
+
+『占坑法』就在每次要新创建连接池，先`总量计数器+1`（占位），再比较是否达到配置的池的最大连接数。如果没有达到，则创建新的；如果已达到了，则等待现有连接释放，再取走。
+
+有点类似，大学时先用本书去抢位置占着。
+
+大致实现代码如下：
+
 ```java
-/**
- * Thread safe way to retrieve a connection from the pool
- * @param wait - time to wait, overrides the maxWait from the properties,
- * set to -1 if you wish to use maxWait, 0 if you wish no wait time.
- * @return PooledConnection
- * @throws SQLException
- */
-private PooledConnection borrowConnection(int wait, String username, String password) throws SQLException {
+public class ConnectionPool {
 
-    if (isClosed()) {
-        throw new SQLException("Connection pool closed.");
-    } //end if
+    //连接数的总量
+    private AtomicInteger size = new AtomicInteger(0);
+    
+    //所有正在使用中的连接
+    private BlockingQueue<PooledConnection> busy;
 
-    //get the current time stamp
-    long now = System.currentTimeMillis();
-    //see if there is one available immediately
-    PooledConnection con = idle.poll();
+    //所有空闲的连接
+    private BlockingQueue<PooledConnection> idle;
 
-    while (true) {
-        if (con!=null) {
-            //configure the connection and return it
-            PooledConnection result = borrowConnection(now, con, username, password);
-            //null should never be returned, but was in a previous impl.
-            if (result!=null) return result;
-        }
-
-        //if we get here, see if we need to create one
-        //this is not 100% accurate since it doesn't use a shared
-        //atomic variable - a connection can become idle while we are creating
-        //a new connection
-        if (size.get() < getPoolProperties().getMaxActive()) {
-            //atomic duplicate check
-            if (size.addAndGet(1) > getPoolProperties().getMaxActive()) {
-                //if we got here, two threads passed through the first if
-                size.decrementAndGet();
-            } else {
-                //create a connection, we're below the limit
-                return createConnection(now, con, username, password);
+    private PooledConnection borrowConnection(int wait, String username, String password) throws SQLException {
+        PooledConnection con = idle.poll();
+        while (true) {
+            if (con != null) {
+                 try {
+                     busy.offer(con);//我这简化了，在源码中这儿会对连接进行校验、检查或进行连接。
+                 } catch(Exception e) {
+                 }
+                 return con;
             }
-        } //end if
-
-        //calculate wait time for this iteration
-        long maxWait = wait;
-        //if the passed in wait time is -1, means we should use the pool property value
-        if (wait==-1) {
-            maxWait = (getPoolProperties().getMaxWait()<=0)?Long.MAX_VALUE:getPoolProperties().getMaxWait();
-        }
-
-        long timetowait = Math.max(0, maxWait - (System.currentTimeMillis() - now));
-        waitcount.incrementAndGet();
-        try {
-            //retrieve an existing connection
-            con = idle.poll(timetowait, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException ex) {
-            if (getPoolProperties().getPropagateInterruptState()) {
-                Thread.currentThread().interrupt();
-            } else {
-                Thread.interrupted();
-            }
-            SQLException sx = new SQLException("Pool wait interrupted.");
-            sx.initCause(ex);
-            throw sx;
-        } finally {
-            waitcount.decrementAndGet();
-        }
-        if (maxWait==0 && con == null) { //no wait, return one if we have one
-        if (jmxPool!=null) {
-            jmxPool.notify(org.apache.tomcat.jdbc.pool.jmx.ConnectionPool.POOL_EMPTY, "Pool empty - no wait.");
-            }
-            throw new PoolExhaustedException("[" + Thread.currentThread().getName()+"] " +
-                    "NoWait: Pool empty. Unable to fetch a connection, none available["+busy.size()+" in use].");
-        }
-        //we didn't get a connection, lets see if we timed out
-        if (con == null) {
-            if ((System.currentTimeMillis() - now) >= maxWait) {
-                if (jmxPool!=null) {
-                    jmxPool.notify(org.apache.tomcat.jdbc.pool.jmx.ConnectionPool.POOL_EMPTY, "Pool empty - timeout.");
+    
+            if (size.get() < getPoolProperties().getMaxActive()) {
+                
+                //占坑神技
+                if (size.addAndGet(1) > getPoolProperties().getMaxActive()) {
+                    //既然没了，那数量也减回去
+                    //再去等待其他连接归还回来
+                    size.decrementAndGet();
+                } else {
+                    return createConnection(now, con, username, password);
                 }
-                throw new PoolExhaustedException("[" + Thread.currentThread().getName()+"] " +
-                    "Timeout: Pool empty. Unable to fetch a connection in " + (maxWait / 1000) +
-                    " seconds, none available[size:"+size.get() +"; busy:"+busy.size()+"; idle:"+idle.size()+"; lastwait:"+timetowait+"].");
-            } else {
-                //no timeout, lets try again
-                continue;
             }
+
+            try {
+                //检查并等待新的空闲连接
+                con = idle.poll(timetowait, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException ex) {
+                //....
+            } 
         }
-    } //while
+    }
+    
 }
 ```
 
-#### returnConnection
-```java
-/**
- * Returns a connection to the pool
- * If the pool is closed, the connection will be released
- * If the connection is not part of the busy queue, it will be released.
- * If {@link PoolProperties#testOnReturn} is set to true it will be validated
- * @param con PooledConnection to be returned to the pool
- */
-protected void returnConnection(PooledConnection con) {
-    if (isClosed()) {
-        //if the connection pool is closed
-        //close the connection instead of returning it
-        release(con);
-        return;
-    } //end if
+### 用完后「归还」连接是怎么个过程？
+大致思路跟「借」操作相反落。当然是无视那些「善后」的工作，只关注资源的管理。
 
+但是，**做为连接池必须的职责之一，并不真实的断开与数据库的连接。**而只是放至`idle`队列中，供客户端下次再使用。如果有需要或必要肯定会释放，技巧所在。
+
+大致代码如下：
+
+```java
+protected void returnConnection(PooledConnection con) {
     if (con != null) {
         try {
             con.lock();
-
+    
             if (busy.remove(con)) {
-
-                if (!shouldClose(con,PooledConnection.VALIDATE_RETURN)) {
-                    con.setStackTrace(null);
-                    con.setTimestamp(System.currentTimeMillis());
-                    if (((idle.size()>=poolProperties.getMaxIdle()) && !poolProperties.isPoolSweeperEnabled()) || (!idle.offer(con))) {
-                        if (log.isDebugEnabled()) {
-                            log.debug("Connection ["+con+"] will be closed and not returned to the pool, idle["+idle.size()+"]>=maxIdle["+poolProperties.getMaxIdle()+"] idle.offer failed.");
-                        }
-                        release(con);
-                    }
-                } else {
-                    if (log.isDebugEnabled()) {
-                        log.debug("Connection ["+con+"] will be closed and not returned to the pool.");
-                    }
-                    release(con);
-                } //end if
-            } else {
-                if (log.isDebugEnabled()) {
-                    log.debug("Connection ["+con+"] will be closed and not returned to the pool, busy.remove failed.");
+                //跟允许的最大空闲数比较
+                if(idle.size() < poolProperties.getMaxIdle()) {
+                    idle.offer(con);
+                    //源码中调用release
+                    //会根据配置项执行一些校验，例如：testOnReturn为true，则在回收时检查连接是否正常
+                    //release(con); 
                 }
-                release(con);
-            }
+        } catch(Exception e) {
+           //.... 
         } finally {
             con.unlock();
         }
     } //end if
-} //checkIn
+}
 ```
 
-#### checkIdle
-```java
-public void checkIdle(boolean ignoreMinSize) {
 
-    try {
-        if (idle.size()==0) return;
-        long now = System.currentTimeMillis();
-        Iterator<PooledConnection> unlocked = idle.iterator();
-        while ( (ignoreMinSize || (idle.size()>=getPoolProperties().getMinIdle())) && unlocked.hasNext()) {
-            PooledConnection con = unlocked.next();
-            boolean setToNull = false;
-            try {
-                con.lock();
-                //the con been taken out, we can't clean it up
-                if (busy.contains(con))
-                    continue;
-                long time = con.getTimestamp();
-                if (shouldReleaseIdle(now, con, time)) {
+### 当长时间运行后，怎么回收无效的连接？
+**这是连接池必备的功能之一，类似检查死链或者释放自身过多的资源。**比如，在高并发过后，对资源消耗量少时，就释放些不再使用的数据库连接（真实断开），维护合理的空格数量。
+
+看到这应用场景就自然想到，通过后台线程定时扫描。
+
+「对的，就是这样子。」
+
+同样在`ConnectionPool`这个类文件中的`PoolCleaner`类。写在同个类文件中，便于用this进行传递数据。不用再去构造个复杂的`ConnectionPool`对象。
+
+直接上代码，「好代码」就是最好的描述。
+
+```java
+public class ConnectionPool {
+
+    /**
+     * Initialize the connection pool - called from the constructor
+     */
+    protected void init(PoolConfiguration properties) throws SQLException {
+        initializePoolCleaner(properties);
+    }
+
+    public void initializePoolCleaner(PoolConfiguration properties) {        
+        if (properties.isPoolSweeperEnabled()) {
+            poolCleaner = new PoolCleaner(this, properties.getTimeBetweenEvictionRunsMillis());
+            poolCleaner.start(); //只注册一个清理器，并未启动线程。
+        } //end if
+    }
+
+    /**
+    * 检查所有的空闲连接
+    */
+    public void checkIdle(boolean ignoreMinSize) {
+
+        try {
+            if (idle.size()==0) return;
+            
+            Iterator<PooledConnection> unlocked = idle.iterator();
+            while (unlocked.hasNext()) {
+                PooledConnection con = unlocked.next();
+                try {
+                    con.lock();
+                    //如果这时已到busy中，则不检查了
+                    if (busy.contains(con)) {
+                        continue;
+                    }
+
                     release(con);
                     idle.remove(con);
-                    setToNull = true;
-                } else {
-                    //do nothing
-                } //end if
-            } finally {
-                con.unlock();
-                if (setToNull)
-                    con = null;
-            }
-        } //while
-    } catch (ConcurrentModificationException e) {
-        log.debug("checkIdle failed." ,e);
-    } catch (Exception e) {
-        log.warn("checkIdle failed, it will be retried.",e);
-    }
 
-}
-
-
-protected boolean shouldReleaseIdle(long now, PooledConnection con, long time) {
-    if (con.getConnectionVersion() < getPoolVersion()) return true;
-    else return (con.getReleaseTime()>0) && ((now - time) > con.getReleaseTime()) && (getSize()>getPoolProperties().getMinIdle());
-}
-
-private static volatile Timer poolCleanTimer = null;
-private static HashSet<PoolCleaner> cleaners = new HashSet<>();
-
-private static synchronized void registerCleaner(PoolCleaner cleaner) {
-    unregisterCleaner(cleaner);
-    cleaners.add(cleaner);
-    if (poolCleanTimer == null) {
-        ClassLoader loader = Thread.currentThread().getContextClassLoader();
-        try {
-            Thread.currentThread().setContextClassLoader(ConnectionPool.class.getClassLoader());
-            poolCleanTimer = new Timer("PoolCleaner["+ System.identityHashCode(ConnectionPool.class.getClassLoader()) + ":"+
-                                       System.currentTimeMillis() + "]", true);
-        }finally {
-            Thread.currentThread().setContextClassLoader(loader);
+                } finally {
+                    con.unlock();
+                }
+            } //while
+        } catch (Exception e) {
+            //....
         }
-    }
-    poolCleanTimer.scheduleAtFixedRate(cleaner, cleaner.sleepTime,cleaner.sleepTime);
-}
 
-private static synchronized void unregisterCleaner(PoolCleaner cleaner) {
-    boolean removed = cleaners.remove(cleaner);
-    if (removed) {
-        cleaner.cancel();
-        if (poolCleanTimer != null) {
-            poolCleanTimer.purge();
-            if (cleaners.size() == 0) {
-                poolCleanTimer.cancel();
-                poolCleanTimer = null;
-            }
-        }
-    }
-}
-
-protected static class PoolCleaner extends TimerTask {
-    protected WeakReference<ConnectionPool> pool;
-    protected long sleepTime;
-    protected volatile long lastRun = 0;
-
-    PoolCleaner(ConnectionPool pool, long sleepTime) {
-        this.pool = new WeakReference<>(pool);
-        this.sleepTime = sleepTime;
-        if (sleepTime <= 0) {
-            log.warn("Database connection pool evicter thread interval is set to 0, defaulting to 30 seconds");
-            this.sleepTime = 1000 * 30;
-        } else if (sleepTime < 1000) {
-            log.warn("Database connection pool evicter thread interval is set to lower than 1 second.");
-        }
     }
 
-    @Override
-    public void run() {
-        ConnectionPool pool = this.pool.get();
-        if (pool == null) {
-            stopRunning();
-        } else if (!pool.isClosed() &&
-                (System.currentTimeMillis() - lastRun) > sleepTime) {
-            lastRun = System.currentTimeMillis();
+    private static volatile Timer poolCleanTimer = null;
+    private static HashSet<PoolCleaner> cleaners = new HashSet<>();
+
+    //注册一个清理器
+    private static synchronized void registerCleaner(PoolCleaner cleaner) {
+        unregisterCleaner(cleaner);
+        cleaners.add(cleaner);
+        
+        //一堆构造方式。。。
+        if (poolCleanTimer == null) {
+            ClassLoader loader = Thread.currentThread().getContextClassLoader();
             try {
-                if (pool.getPoolProperties().isRemoveAbandoned())
-                    pool.checkAbandoned();
-                if (pool.getPoolProperties().getMinIdle() < pool.idle
-                        .size())
-                    pool.checkIdle();
-                if (pool.getPoolProperties().isTestWhileIdle())
-                    pool.testAllIdle();
-            } catch (Exception x) {
-                log.error("", x);
+                Thread.currentThread().setContextClassLoader(ConnectionPool.class.getClassLoader());
+                poolCleanTimer = new Timer("PoolCleaner["+ System.identityHashCode(ConnectionPool.class.getClassLoader()) + ":"+
+                                           System.currentTimeMillis() + "]", true);
+            }finally {
+                Thread.currentThread().setContextClassLoader(loader);
             }
         }
+        //构造定时扫描器
+        //java有内库非常强大，想用啥有啥呀
+        poolCleanTimer.scheduleAtFixedRate(cleaner, cleaner.sleepTime,cleaner.sleepTime);
     }
 
-    public void start() {
-        registerCleaner(this);
-    }
+    //真实的处理线程在这儿。。。
+    protected static class PoolCleaner extends TimerTask {
+        protected WeakReference<ConnectionPool> pool;
 
-    public void stopRunning() {
-        unregisterCleaner(this);
+        PoolCleaner(ConnectionPool pool, long sleepTime) {
+            //弱引用，不了解的可以google下
+            this.pool = new WeakReference<>(pool);
+        }
+
+        @Override
+        public void run() {
+            ConnectionPool pool = this.pool.get();
+            if (pool == null) {
+                stopRunning();
+            } else if (!pool.isClosed()) {                
+      
+                if (pool.getPoolProperties().getMinIdle() < pool.idle.size()) {
+                    pool.checkIdle(); //check. check now.
+                }
+            }
+        }
+
+        public void start() {
+            registerCleaner(this); //并未启动线程，只是注册一个清理器
+        }
+
+        public void stopRunning() {
+            unregisterCleaner(this);
+        }
     }
 }
 ```
-
-
-
-
-
-
