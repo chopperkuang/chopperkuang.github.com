@@ -14,9 +14,9 @@ category: blog
 
 ### 如何使用红杏的公益代理
 
-公益代理为：`http://hx.gy:1080` (简拼)
-hostname: `hx.gx`
-port:`1080`
+公益代理为：`http://hx.gy:1080` (简拼)  
+hostname: `hx.gx`  
+port:`1080`  
 
 **github加速**
 `git config --global http.proxy http://hx.gy:1080`
