@@ -23,14 +23,16 @@ port:`1080`
 
 **npm加速**  
 For `HTTP`:  
-```ruby
-npm config set strict-ssl false
-npm config set proxy http://hx.gy:1080
-npm install xxx
+```bash
+npm config set strict-ssl false  
+npm config set proxy http://hx.gy:1080  
+npm install xxx  
 ```
-or  
-`npm --proxy http://hx.gy:1080 install`
-`npm --proxy http://hx.gy:1080 --without-ssl --insecure -g install`
+or    
+```bash
+npm --proxy http://hx.gy:1080 install
+npm --proxy http://hx.gy:1080 --without-ssl --insecure -g install
+```
 
 **gem加速**  
 `gem install -p http://hx.gy:1080 compass`
@@ -40,8 +42,8 @@ or
 
 ### 何为公益代理
 只供开发人员使用，是免费的。目前暂只支持的域名如下：
->
-android.com    
+
+> android.com    
 s3.amazonaws.com  
 bitbucket.org  
 bintray.com  
