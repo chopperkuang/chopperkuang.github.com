@@ -14,7 +14,7 @@ category: blog
 
 ### 如何使用红杏的公益代理
 
-公益代理为：`http://hx.gy:1080` (简拼)  
+公益代理为：`http://hx.gy:1080`    
 hostname: `hx.gx`  
 port:`1080`  
 
@@ -28,7 +28,9 @@ npm config set strict-ssl false
 npm config set proxy http://hx.gy:1080  
 npm install xxx  
 ```
+
 or    
+
 ```ruby
 npm --proxy http://hx.gy:1080 install
 npm --proxy http://hx.gy:1080 --without-ssl --insecure -g install
