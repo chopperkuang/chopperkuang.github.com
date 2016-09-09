@@ -9,14 +9,21 @@ blockquote {
   color: #7a7a7a;
   border-left: .25rem solid #e5e5e5;
 }
+
 blockquote p:last-child {
   margin-bottom: 0;
 }
+
 @media (min-width: 30em) {
   blockquote {
     padding-right: 0rem;
     padding-left: 1.25rem;
   }
+}
+
+.page,
+.post {
+    font-size: 19px;
 }
 
 /*img*/
