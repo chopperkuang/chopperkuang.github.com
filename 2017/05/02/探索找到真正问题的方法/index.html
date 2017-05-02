@@ -1,0 +1,793 @@
+<!doctype html>
+
+
+
+
+<html class="theme-next pisces" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+  
+  
+  
+  
+
+  
+    
+    
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    
+    
+    <link href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+  
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.0" rel="stylesheet" type="text/css" />
+
+
+  <meta name="keywords" content="随感," />
+
+
+
+
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?v=5.1.0" />
+
+
+
+
+
+
+<meta name="description" content="在任何的技术组织中最重要的过程之一是对事故和问题进行解决、跟踪和报告。那么当发生事故和问题时要彻底追究真正的原因。找出引发问题的真正原因的方法在于不断地重复「为什么，为什么，为什么」。">
+<meta name="keywords" content="随感">
+<meta property="og:type" content="article">
+<meta property="og:title" content="探索找到真正问题的方法">
+<meta property="og:url" content="http://kuang.io/2017/05/02/探索找到真正问题的方法/index.html">
+<meta property="og:site_name" content="闷骚乔巴">
+<meta property="og:description" content="在任何的技术组织中最重要的过程之一是对事故和问题进行解决、跟踪和报告。那么当发生事故和问题时要彻底追究真正的原因。找出引发问题的真正原因的方法在于不断地重复「为什么，为什么，为什么」。">
+<meta property="og:image" content="http://kuang.io/images/posts/20170502-5why.png">
+<meta property="og:updated_time" content="2017-05-02T05:55:06.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="探索找到真正问题的方法">
+<meta name="twitter:description" content="在任何的技术组织中最重要的过程之一是对事故和问题进行解决、跟踪和报告。那么当发生事故和问题时要彻底追究真正的原因。找出引发问题的真正原因的方法在于不断地重复「为什么，为什么，为什么」。">
+<meta name="twitter:image" content="http://kuang.io/images/posts/20170502-5why.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Pisces',
+    sidebar: {"position":"left","display":"post","offset":12,"offset_float":0,"b2t":false,"scrollpercent":false},
+    fancybox: true,
+    motion: false,
+    duoshuo: {
+      userId: '6408695916059952000',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://kuang.io/2017/05/02/探索找到真正问题的方法/"/>
+
+
+
+
+
+  <title> 探索找到真正问题的方法 | 闷骚乔巴 </title>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+
+
+
+
+
+  <script type="text/javascript">
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "https://hm.baidu.com/hm.js?54e1909b83213c39e89358d90ad31269";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+
+
+
+
+
+
+
+
+
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail ">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">闷骚乔巴</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br />
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            归档
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            标签
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://kuang.io/2017/05/02/探索找到真正问题的方法/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="kuang">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.png">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="闷骚乔巴">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">
+            
+            
+              
+                探索找到真正问题的方法
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2017-05-02T13:45:12+08:00">
+                2017-05-02
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2017/05/02/探索找到真正问题的方法/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count disqus-comment-count"
+                        data-disqus-identifier="2017/05/02/探索找到真正问题的方法/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+              <div class="post-description">
+                  在任何的技术组织中最重要的过程之一是对事故和问题进行解决、跟踪和报告。那么当发生事故和问题时要彻底追究真正的原因。找出引发问题的真正原因的方法在于不断地重复「为什么，为什么，为什么」。
+              </div>
+          
+
+        </div>
+      </header>
+    
+
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>在任何的技术组织中最重要的过程之一是对事故和问题进行解决、跟踪和报告。那么当发生事故和问题时要彻底追究真正的原因。</p>
+<p>找出引发问题的真正原因的方法在于不断地重复「为什么，为什么，为什么」。。。</p>
+<h2 id="重复5个「为什么」"><a href="#重复5个「为什么」" class="headerlink" title="重复5个「为什么」"></a>重复5个「为什么」</h2><p>所谓真正的原因，就是引发问题的真正「主要因素」。<br>问题越大，对其原因进行调查时，就会发现其中有很多原因。比如针对「系统反馈多」这一问题，可以提出几十个以上的「主要因素」。</p>
+<p>但是，就算你解决了眼前的这些「主要因素」，如果其中不包括真正的原因，那么也只是解决了眼前的原因，而同样的问题还会再次出现。</p>
+<p>假设「系统反馈多」这一问题的真正原因是「系统需要重新设计」，但你却错误地认为「Bug多」是真正的原因，那么就算解决了这个原因，也只是取得暂时的效果罢了。</p>
+<p>在丰田思考法里面，推荐「5次为什么」。虽然也有重复两三次「为什么」就能找到真正的原因情况，但对于尚不习惯解决问题的人来说，很容易还没找到真正原因的阶段，就认为「这是真正的原因」。所以重复四至五次「为什么」，可以更加逼近真正的原因。</p>
+<p>比如『年轻营业负责人业绩下降』这一问题。</p>
+<p><strong>【问题内容】年轻营业负责人业绩下降</strong><br>为什么？因为无法拓展新客户<br>为什么？因为就算上门访问也无法成功商谈<br>为什么？因为没有第二次访问<br>为什么？因为不能很好地对商品进行说明<br>为什么？因为对商品的知识不足</p>
+<p>另外一个问题，可以引发多个原因，顺着不同的分支，我们可以不断去分析逼近真正的原因。如图分析所示。<br><img src="/images/posts/20170502-5why.png" alt="image"></p>
+<p><strong>「为什么」的写法</strong><br>具体再整理下为什么的写法，这样更快速去找到问题，不要在一些没有提供明确信息场景去追问。比如，我太忙了，我觉得是这样等等。</p>
+<ul>
+<li>使用像「哪里不行」的简洁描述</li>
+<li>避免出现2个动词。比如：因为用户没有先点计算按钮，而直接提交就出现问题了。我们是先分析「没有先点计算按钮」还是去分析「直接提交就出问题」呢？</li>
+<li>以写事实为原则</li>
+<li>不要使用像「太忙了」等辩解和借口。为什么太忙呢？太忙明显就不是真正原因</li>
+<li>不要使用像「我觉得这样」「我太乐观了」等缺乏具体内容的词汇</li>
+<li>不仅仅写有关自己和本部门的，相关的都可以。但主要从自己和本部门，职责范围内去分析，找解决办法</li>
+</ul>
+<h2 id="怎么确定是真正的原因"><a href="#怎么确定是真正的原因" class="headerlink" title="怎么确定是真正的原因"></a>怎么确定是真正的原因</h2><p><strong>1、重复再问为什么，问题会不会发展</strong><br>比如像因为行业的问题，因为外部经济原因等等，这些难以确定具体对策的内容，就很难以取得实际效果。</p>
+<p><strong>2、因果关系反过来是否成立？</strong></p>
+<p>如上述案例，把因果反过来，是否通顺。</p>
+<p>因为对商品的知识不足<br>所以不能很好地对商品进行说明<br>所以没有第二次访问<br>所以就算上门访问也无法成功商谈<br>所以无法拓展新客户<br>所以年轻营业负责人业绩下降</p>
+<p>像这样因果关系反过来，仍然是成立的。</p>
+<h2 id="不一定都要有5个为什么"><a href="#不一定都要有5个为什么" class="headerlink" title="不一定都要有5个为什么"></a>不一定都要有5个为什么</h2><p>5个为什么只是提供帮忙我们找到根本问题的方式，但并不是每个问题都需要问5个为什么，根据以上的方式，只要感觉找到了根本原因就行。</p>
+<p><strong>【问题内容】佣金计算错误的 BUG（这个问题可以有很多的分析分支）</strong><br>为什么？因为我们测试到<br>为什么？一直关注计算公式，没有注意异常人为操作分支<br>为什么？测试用例设计没有考虑异常操作流程</p>
+<p>那么，没有考虑异常操作的用例设计，就是根本原因之一。我们可以设计对策预防该类问题再重复发生。</p>
+<h2 id="不要把真正的原因推给别人"><a href="#不要把真正的原因推给别人" class="headerlink" title="不要把真正的原因推给别人"></a>不要把真正的原因推给别人</h2><p>客户不对无法解决问题</p>
+<p>确定真正的原因时，有两点需要特别注意。</p>
+<p><strong>第一个是在自己的责任范围内寻找能够解决问题的真正的原因。不要把责任转嫁给他人或者外部原因。</strong></p>
+<p>比如『产品反馈多』，如果因为『公司控制成本』的话，自己也没什么解决办法。比如『销售无法提高』，如果因为『政策限制多』的话，从个人层面上来说束手无策。</p>
+<p>有时真正的原因可能涉及上司和其他部门，这种情况下，也应该尽可能把解决问题的具体行动落实到自己的职责范围内，然后去推动解决，但不能把问题都推给上司或其他部门。</p>
+<p>在寻找真正的原因时，必须从『依靠自己的力量解决问题』的视点开始。</p>
+<p><strong>第二个是不要凭感觉寻找原因。</strong></p>
+<p>在寻找真正原因的时候，反复地思考『为什么』，很容易出现将凭感觉找到的原因当成真正的原因的情况。<br>如果「为什么」不以事实为根据，那么分析的方向就会出现偏差。</p>
+<p>另外，如果真正的原因涉及人的『意识』和『意欲』，那么很有可能是凭感觉分析出来的。</p>
+<p>比如「XXX产品意识差」「XXX问题意识太低」「XXX没有干劲」等原因，就是凭感觉分析出来的，可能并非事实。但这可能是原因之一，但并不能成为真正原因，我们可以继续追问为什么？为什么产品意识差，为什么没有干劲等等。最终很有可能发现「因为没有仔细地教他工作方法」「因为我们的这些要求他根本没有理解」「因为彼此的沟通并不流畅」这个真正的原因。</p>
+<h2 id="反复训练，反复训练"><a href="#反复训练，反复训练" class="headerlink" title="反复训练，反复训练"></a>反复训练，反复训练</h2><p>分析问题的思路方式，容易理解和学习。但要组织起来，会跟想象中差异会比较大。时不时会碰到些原因，根本分析不下去，并直觉就能发现，这根本不是真正原因。因果反过来都会觉得滑稽。</p>
+<p>那么，首先组织分析问题的根本原因时，不要太着急，顺着现象不断去分析，保持对问题的敏锐，不要主观 YY。</p>
+<p>另外，反复训练，反复训练去实践。思维是需要训练的。</p>
+<p><strong>不找出真正的问题，有序的去解决，问题还会再次出现。</strong></p>
+<p><strong>最后特别提醒：不要带着结论去推敲原因。</strong></p>
+<p>这是我们非常习惯的动作，特别经验丰富或者权威人士的观点影响会非常大。如果是这样的推敲过程，就显得没有意义。</p>
+<p><strong>工程师气质就是不断去发现问题，找到真正原因，寻找更好解决办法。</strong></p>
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/随感/" rel="tag"># 随感</a>
+          
+        </div>
+      
+
+      
+        
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/04/14/tomcat-jdbc-pool-simple-source/" rel="prev" title="tomcat-jdbc-pool 实现简单分析">
+                tomcat-jdbc-pool 实现简单分析 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+      <div id="disqus_thread">
+        <noscript>
+          Please enable JavaScript to view the
+          <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a>
+        </noscript>
+      </div>
+    
+  </div>
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap" >
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <img class="site-author-image" itemprop="image"
+               src="/images/avatar.png"
+               alt="kuang" />
+          <p class="site-author-name" itemprop="name">kuang</p>
+           
+              <p class="site-description motion-element" itemprop="description"></p>
+           
+        </div>
+        <nav class="site-state motion-element">
+
+          
+            <div class="site-state-item site-state-posts">
+              <a href="/archives">
+                <span class="site-state-item-count">27</span>
+                <span class="site-state-item-name">日志</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-categories">
+              <a href="/categories/index.html">
+                <span class="site-state-item-count">1</span>
+                <span class="site-state-item-name">分类</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-tags">
+              <a href="/tags/index.html">
+                <span class="site-state-item-count">1</span>
+                <span class="site-state-item-name">标签</span>
+              </a>
+            </div>
+          
+
+        </nav>
+
+        
+
+        <div class="links-of-author motion-element">
+          
+        </div>
+
+        
+        
+
+        
+        
+
+        
+
+
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#重复5个「为什么」"><span class="nav-number">1.</span> <span class="nav-text">重复5个「为什么」</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#怎么确定是真正的原因"><span class="nav-number">2.</span> <span class="nav-text">怎么确定是真正的原因</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#不一定都要有5个为什么"><span class="nav-number">3.</span> <span class="nav-text">不一定都要有5个为什么</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#不要把真正的原因推给别人"><span class="nav-number">4.</span> <span class="nav-text">不要把真正的原因推给别人</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#反复训练，反复训练"><span class="nav-number">5.</span> <span class="nav-text">反复训练，反复训练</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright" >
+  
+  &copy; 
+  <span itemprop="copyrightYear">2017</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">kuang</span>
+</div>
+
+
+<div class="powered-by">
+  由 <a class="theme-link" href="https://hexo.io">Hexo</a> 强力驱动
+</div>
+
+<div class="theme-info">
+  主题 -
+  <a class="theme-link" href="https://github.com/iissnan/hexo-theme-next">
+    NexT.Pisces
+  </a>
+</div>
+
+
+        
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+  <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.0"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.0"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.0"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.0"></script>
+
+
+
+  
+
+
+  
+
+    
+      <script id="dsq-count-scr" src="https://kuangio.disqus.com/count.js" async></script>
+    
+
+    
+      <script type="text/javascript">
+        var disqus_config = function () {
+          this.page.url = 'http://kuang.io/2017/05/02/探索找到真正问题的方法/';
+          this.page.identifier = '2017/05/02/探索找到真正问题的方法/';
+          this.page.title = '探索找到真正问题的方法';
+        };
+        var d = document, s = d.createElement('script');
+        s.src = 'https://kuangio.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', '' + +new Date());
+        (d.head || d.body).appendChild(s);
+      </script>
+    
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

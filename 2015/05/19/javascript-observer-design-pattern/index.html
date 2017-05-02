@@ -1,0 +1,760 @@
+<!doctype html>
+
+
+
+
+<html class="theme-next pisces" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+  
+  
+  
+  
+
+  
+    
+    
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    
+    
+    <link href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+  
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.0" rel="stylesheet" type="text/css" />
+
+
+  <meta name="keywords" content="闷骚乔巴的博客" />
+
+
+
+
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?v=5.1.0" />
+
+
+
+
+
+
+<meta name="description" content="观察者模式在javascript客户端编程中到处可见其踪影，非常重要的一种设计思想。特别我最近在接触angularjs后，更体会其中妙处。">
+<meta name="keywords">
+<meta property="og:type" content="article">
+<meta property="og:title" content="javascript观察者模式">
+<meta property="og:url" content="http://kuang.io/2015/05/19/javascript-observer-design-pattern/index.html">
+<meta property="og:site_name" content="闷骚乔巴">
+<meta property="og:description" content="观察者模式在javascript客户端编程中到处可见其踪影，非常重要的一种设计思想。特别我最近在接触angularjs后，更体会其中妙处。">
+<meta property="og:updated_time" content="2015-05-19T03:22:42.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="javascript观察者模式">
+<meta name="twitter:description" content="观察者模式在javascript客户端编程中到处可见其踪影，非常重要的一种设计思想。特别我最近在接触angularjs后，更体会其中妙处。">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Pisces',
+    sidebar: {"position":"left","display":"post","offset":12,"offset_float":0,"b2t":false,"scrollpercent":false},
+    fancybox: true,
+    motion: false,
+    duoshuo: {
+      userId: '6408695916059952000',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://kuang.io/2015/05/19/javascript-observer-design-pattern/"/>
+
+
+
+
+
+  <title> javascript观察者模式 | 闷骚乔巴 </title>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+
+
+
+
+
+  <script type="text/javascript">
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "https://hm.baidu.com/hm.js?54e1909b83213c39e89358d90ad31269";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+
+
+
+
+
+
+
+
+
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail ">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">闷骚乔巴</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br />
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            归档
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            标签
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://kuang.io/2015/05/19/javascript-observer-design-pattern/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="kuang">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.png">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="闷骚乔巴">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">
+            
+            
+              
+                javascript观察者模式
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2015-05-19T11:22:42+08:00">
+                2015-05-19
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/blog/" itemprop="url" rel="index">
+                    <span itemprop="name">blog</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2015/05/19/javascript-observer-design-pattern/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count disqus-comment-count"
+                        data-disqus-identifier="2015/05/19/javascript-observer-design-pattern/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+              <div class="post-description">
+                  观察者模式在javascript客户端编程中到处可见其踪影，非常重要的一种设计思想。特别我最近在接触angularjs后，更体会其中妙处。
+              </div>
+          
+
+        </div>
+      </header>
+    
+
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>观察者模式在javascript客户端编程中到处可见其踪影，非常重要的一种设计思想。特别我最近在接触angularjs后，更体会其中妙处。</p>
+<p>搜索一下javascript观察者模式，经典的文章可谓不少。但还是想自己去整理一下思路，更为深刻去理解是原由。</p>
+<p>在工作中，有时会更加重视实践价值，而忽视原理性知识，但当我们了解原理后，更能预测其结果和了解其本意，应用场景。</p>
+<p>###介绍<br>在事件驱动的环境中，观察者模式（又名发布订阅模式（Publish - Subscribe）是一种管理人与其任务之间的关系（确切地讲，是对象及其行为和状态之间的关系）的得力工具。</p>
+<p>它定义了一种一对多的关系，让多个观察者对象同时监听某一个主题对象，这个主题对象的状态发生变化时就会通知所有的观察者对象，使得它们能够自动更新自己。</p>
+<p>###好处<br>将一个系统分割成一系列相互协作的类，但有一个常见的副作用：需要维护相关对象间的一致性。我们不希望为了维持一致性而使各类紧密耦合，因为这样降低了它们的可重用性。  </p>
+<ol>
+<li>支持简单的广播通信，自动通知所有已经订阅过的对象  </li>
+<li>页面载入后目标对象很容易与观察者存在一种动态关联，增加了灵活性  </li>
+<li>目标对象与观察者之间的抽象耦合关系能够单独扩展以及重用  </li>
+</ol>
+<p>###实践<br>先直接上代码（将代码先读懂），<a href="http://jsfiddle.net/chopperkuang/44QLw/2/" target="_blank" rel="external">源代码链接</a>。</p>
+<iframe width="100%" height="500" src="http://jsfiddle.net/chopperkuang/44QLw/2/embedded/" frameborder="0"> </iframe><br>以上代码描述一个博客发布的场景。当博客作者发布新文章者时，订阅者都可以看到该文章，也可以进行相应的操作（比如胡扯一句）。<br><br>本例中的发布者是blogger实例（从observer扩展而来），拥有publish行为，通知所有订阅者。并且可以通过addSubscriber/removeSubscriber添加和删除订阅者。<br>在这，订阅者只是普通的回调函数，负责各自的行为动作。<br><br>###适用性<br>####事件监听器也是观察者<br>在DOM脚本脚本编程中，事件监听说到底就是一种内置的观察者，但事件处理器（handler）与事件监听器（listener）并不是一回事。前者说穿了就是把一种事件传给与其关联的函数的手段。而且这种模型中一种事件只能指定一个回调方法。而在监听器中，一个事件可以与几个监听器关联，每个监听器都能独立于其他监听器而改变。<br>例如，使用事件监听器，可以让多个函数响应同一个事件：<br>//example using listeners<br>var element = $(‘example’);<br>var fn1 = function(){<br>    //handle click<br>}<br>var fn2 = function(){<br>    //do other stuff with click<br>}<br>addEvent(element, ‘click’, fn1);<br>addEvent(element, ‘click’, fn2);<br>但用事件处理器就办不到：<br>//example using handlers<br>var element = document.getElementById(‘id’);<br>var fn1 = function(){<br>    //handle click<br>}<br>var fn2 = function(){<br>    //do other stuff with click<br>}<br>element.onclick = fn1;<br>element.onclick = fn2;<br>可见，监听器和观察者之间的共同之处显而易见。实际上互为同义语，它们都订阅特定的事件，然后等待事件的发生。事件发生后，订阅方的回调函数被执行。<br>####适用场合<br>。当一个抽象模型有两个方面，其中一个方面依赖于另一方面。将这二者封装在独立的对象中以使它们可以各自独立改变和复用<br>。当对一个对象的改变需要同时改变其它对象，而不知道具体有多少对象有待改变<br>。当一个对象必须通知其它对象，而它不能假定其它对象是谁。换言这，你不希望这些对象紧密耦合的。<br><br>就拿上一篇文章中的案例(<a href="http://kkuang.net/awesome-angularJS-features/" target="_blank" rel="external">angularjs五个最棒的特点</a>)的例子。采用angularjs的$watch方法，就可以注册成某个属性或对象的监听者，一旦该对象发生变化，就会被通知到。而且可以在不同的模块中注册，案例中分别在Controller和Directive中都有注册，当菜单的总量变化时，能被立马执行。程序体也非常解耦，无需主动去调用某个对象通知其更新。<br><iframe width="100%" height="400" src="http://jsfiddle.net/chopperkuang/qa3pQ/1/embedded/" frameborder="0"> </iframe>
+
+<p>再前段时间在做的一个税费计算器项目，有很多的输入条件（面积，购入金额，区域等等）并且不同的输入控件（下拉单、输入框、单选等等）。传统的基于事件处理器的方式是，在不同的控件上注册对应的事件，例如，onchange, onclick等等，触发页面更新或重新计算税费的动作。<br>那么，对页面的更新和计算逻辑会混淆在一起。但如果以监听的方式，我们将各种输入组件成一个filter对象，然后用$watch监听该对象的变化。只要其中一个输入值发生变化，立马主动重新计算税费，也触发另外一个监听UI的变更对应的UI效果。   </p>
+<p>angularjs内部提供各种事件供监听，例如：$routeChangeStart(路由变更开始事件)，这个事件就非常有用，我可以将先前在每个Controller中的判断用户是否登录的逻辑抽离到该事件中进行统一判断（因为Controller对应一个路由）<br>在后续，我会更详细介绍angularjs中观察者模式的应用，真的太酷了。</p>
+<p>###小结<br>观察者模式是对应用系统进行抽象的非常有力的手段。可以定义一些事件供客户端使用，而不需要为此深入了解他们的代码。现在的WEB应用程序越来越大，在此背景下，作为一种提高代码的可维护性和简洁性的有力手段，可观察对象的作用更显突出。这种模式的应用有助力防止第三方开发人员因为对你的应用程序了解细节太多而把事情搞糟。    </p>
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <footer class="post-footer">
+      
+
+      
+        
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2015/05/19/linux-command-line-shortcuts/" rel="next" title="linux命令行快捷键">
+                <i class="fa fa-chevron-left"></i> linux命令行快捷键
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2015/05/19/what-makes-a-great-software-engineer/" rel="prev" title="伟大的程序员是怎样炼成的？">
+                伟大的程序员是怎样炼成的？ <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+      <div id="disqus_thread">
+        <noscript>
+          Please enable JavaScript to view the
+          <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a>
+        </noscript>
+      </div>
+    
+  </div>
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+
+      
+
+      
+
+      <section class="site-overview sidebar-panel sidebar-panel-active">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <img class="site-author-image" itemprop="image"
+               src="/images/avatar.png"
+               alt="kuang" />
+          <p class="site-author-name" itemprop="name">kuang</p>
+           
+              <p class="site-description motion-element" itemprop="description"></p>
+           
+        </div>
+        <nav class="site-state motion-element">
+
+          
+            <div class="site-state-item site-state-posts">
+              <a href="/archives">
+                <span class="site-state-item-count">27</span>
+                <span class="site-state-item-name">日志</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-categories">
+              <a href="/categories/index.html">
+                <span class="site-state-item-count">1</span>
+                <span class="site-state-item-name">分类</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-tags">
+              <a href="/tags/index.html">
+                <span class="site-state-item-count">1</span>
+                <span class="site-state-item-name">标签</span>
+              </a>
+            </div>
+          
+
+        </nav>
+
+        
+
+        <div class="links-of-author motion-element">
+          
+        </div>
+
+        
+        
+
+        
+        
+
+        
+
+
+      </section>
+
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright" >
+  
+  &copy; 
+  <span itemprop="copyrightYear">2017</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">kuang</span>
+</div>
+
+
+<div class="powered-by">
+  由 <a class="theme-link" href="https://hexo.io">Hexo</a> 强力驱动
+</div>
+
+<div class="theme-info">
+  主题 -
+  <a class="theme-link" href="https://github.com/iissnan/hexo-theme-next">
+    NexT.Pisces
+  </a>
+</div>
+
+
+        
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+  <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.0"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.0"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.0"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.0"></script>
+
+
+
+  
+
+
+  
+
+    
+      <script id="dsq-count-scr" src="https://kuangio.disqus.com/count.js" async></script>
+    
+
+    
+      <script type="text/javascript">
+        var disqus_config = function () {
+          this.page.url = 'http://kuang.io/2015/05/19/javascript-observer-design-pattern/';
+          this.page.identifier = '2015/05/19/javascript-observer-design-pattern/';
+          this.page.title = 'javascript观察者模式';
+        };
+        var d = document, s = d.createElement('script');
+        s.src = 'https://kuangio.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', '' + +new Date());
+        (d.head || d.body).appendChild(s);
+      </script>
+    
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

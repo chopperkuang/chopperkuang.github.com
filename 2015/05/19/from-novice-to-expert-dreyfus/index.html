@@ -1,0 +1,798 @@
+<!doctype html>
+
+
+
+
+<html class="theme-next pisces" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+  
+  
+  
+  
+
+  
+    
+    
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    
+    
+    <link href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+  
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.0" rel="stylesheet" type="text/css" />
+
+
+  <meta name="keywords" content="闷骚乔巴的博客" />
+
+
+
+
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?v=5.1.0" />
+
+
+
+
+
+
+<meta name="description" content="德雷福斯兄弟考察了行业技术能手，包括商用客机飞行员和世界著名国际象棋大师。他们的研究表明，从新手到专家要经历巨大的变化，总共要经历5个阶段……">
+<meta name="keywords">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从新手到专家的历程——德雷福斯模型">
+<meta property="og:url" content="http://kuang.io/2015/05/19/from-novice-to-expert-dreyfus/index.html">
+<meta property="og:site_name" content="闷骚乔巴">
+<meta property="og:description" content="德雷福斯兄弟考察了行业技术能手，包括商用客机飞行员和世界著名国际象棋大师。他们的研究表明，从新手到专家要经历巨大的变化，总共要经历5个阶段……">
+<meta property="og:updated_time" content="2015-05-19T03:22:42.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="从新手到专家的历程——德雷福斯模型">
+<meta name="twitter:description" content="德雷福斯兄弟考察了行业技术能手，包括商用客机飞行员和世界著名国际象棋大师。他们的研究表明，从新手到专家要经历巨大的变化，总共要经历5个阶段……">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Pisces',
+    sidebar: {"position":"left","display":"post","offset":12,"offset_float":0,"b2t":false,"scrollpercent":false},
+    fancybox: true,
+    motion: false,
+    duoshuo: {
+      userId: '6408695916059952000',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://kuang.io/2015/05/19/from-novice-to-expert-dreyfus/"/>
+
+
+
+
+
+  <title> 从新手到专家的历程——德雷福斯模型 | 闷骚乔巴 </title>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+
+
+
+
+
+  <script type="text/javascript">
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "https://hm.baidu.com/hm.js?54e1909b83213c39e89358d90ad31269";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+
+
+
+
+
+
+
+
+
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail ">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">闷骚乔巴</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br />
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            归档
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            标签
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://kuang.io/2015/05/19/from-novice-to-expert-dreyfus/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="kuang">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.png">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="闷骚乔巴">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">
+            
+            
+              
+                从新手到专家的历程——德雷福斯模型
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2015-05-19T11:22:42+08:00">
+                2015-05-19
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/blog/" itemprop="url" rel="index">
+                    <span itemprop="name">blog</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2015/05/19/from-novice-to-expert-dreyfus/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count disqus-comment-count"
+                        data-disqus-identifier="2015/05/19/from-novice-to-expert-dreyfus/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+              <div class="post-description">
+                  德雷福斯兄弟考察了行业技术能手，包括商用客机飞行员和世界著名国际象棋大师。他们的研究表明，从新手到专家要经历巨大的变化，总共要经历5个阶段……
+              </div>
+          
+
+        </div>
+      </header>
+    
+
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>德雷福斯兄弟考察了行业技术能手，包括商用客机飞行员和世界著名国际象棋大师。他们的研究表明，从新手到专家要经历巨大的变化。总共要经历5个阶段：</p>
+<ul>
+<li>新手</li>
+<li>高级新手</li>
+<li>胜任者</li>
+<li>精通者</li>
+<li>专家</li>
+</ul>
+<h2 id="阶段1：新手"><a href="#阶段1：新手" class="headerlink" title="阶段1：新手"></a>阶段1：新手</h2><p>由定义可知，新手在该技能领域经验很少或者根本没有经验。这里提到的经验，指的是通过实施这项技术促进了思维的改变。举个反例，可能一个开发人员拥有十年的经验，但实际上只是一年的经验重复了九次，那么就不算是经验。  </p>
+<p>新手非常在乎他们能否成功。没有太多经验指导他们，他们不知道自己的行为是对是错。新手不是特别想要学习，他们只是想实现一个立竿见影的目标。他们不知道如何应付错误，所以出错的时候，他们容易慌乱。</p>
+<p>但是，如果新手提供与情境无关的规则去参照，他们就会变得能干起来。<strong>也就是说，需要这种形式的规则：“当X发生时，执行Y。”换言之，需要一份指令清单。</strong></p>
+<h2 id="阶段2：高级新手"><a href="#阶段2：高级新手" class="headerlink" title="阶段2：高级新手"></a>阶段2：高级新手</h2><p>一旦进过新手的历练，人们开始以高级新手的角度看待问题。高级新手能够开始多多少少地摆脱固定规则。他们可以独自尝试任务，但仍难以解决问题。</p>
+<p>他们想要快速获取信息。例如，当学习一门新语言或API时，你可能会感觉到这点，你发现自己会快速浏览文档以v寻找一个方法定义或参数列表。你不想在此刻寻根究底，或者重新温习一遍基础知识。</p>
+<p><strong>高级新手能够根据过去的经验，逐步在正确的情境中采纳建议，但比较吃力。同时，他们能够开始形成一些总体原则，但不是“全貌”。</strong>他们没有全面的理解，而且的确不想有。如果你试图把一个更大的情境加强给高级新手，他们可能会认为情境与那些原则不相关而忽略掉。</p>
+<p>当公司CEO举行全体会议并展示销售数据或预测图时，你可能会看到这样的反应。许多在这方面经验较少的员工对这些不加理会，以为这与他们的工作不相关。</p>
+<p>当然，其实这是非常相关的，它可以帮助你判断明年你在这家公司是否还能继续干下去。但是，你看不到这种联系，因为你的层次还不够，只处于较低的技能水平。</p>
+<p><strong>高级新手不想要全局思维</strong></p>
+<h2 id="阶段3：胜任者"><a href="#阶段3：胜任者" class="headerlink" title="阶段3：胜任者"></a>阶段3：胜任者</h2><p>胜任者，从业者现在能够建立问题域的概念模型，并有效地使用它们。他们可以独立解决自己遇到的问题，并开始考虑如何解决新的问题——那些他们之前没有遇到的问题。</p>
+<p>与更高水平追随下意识反应不同，胜任者会探寻和解决问题，他们的工作更多是基于谨慎的计划和过去的经验。如果没有更多的经验，在解决问题时，他们将难以确定关注哪些细节。</p>
+<p><strong>胜任者能够解决问题</strong></p>
+<p>在软件开发领域，我们达到了这个水平，但是即使在这一水平，人们仍然无法按照我们希望的方式来应用敏捷方法——大家还没有足够的能力反思和自我纠正。为此，我们需要取得突破，达到一个新的水平：精通</p>
+<h2 id="阶段4：精通"><a href="#阶段4：精通" class="headerlink" title="阶段4：精通"></a>阶段4：精通</h2><p>精通者，精通水平的从业者需要全局思维。他们将围绕这个技术，寻找并想了解更大的概念框架。对于过于简化的信息，他们会非常沮丧。</p>
+<p>处于精通水平的有一项重大突破：他们能够纠正以往不好的工作表现，他们会反思以前如何做的，并修改其做法，期待下次表现更好。到这个阶段，自我改进才会出现。</p>
+<p>同时，他们会学习他人的经验，作为精通者，他能够阅读案例研究，倾听有关失败项目流言蜚语，观察别人怎么做的，从故事中认真学习，即使他没有亲自参与。</p>
+<p><strong>精通者能自我纠正</strong></p>
+<p>精通者可以充分利用思考和反馈，这些都是敏捷方法的核心。</p>
+<h2 id="阶段5：专家"><a href="#阶段5：专家" class="headerlink" title="阶段5：专家"></a>阶段5：专家</h2><p>专家是各个领域知识和信息的主要来源。他们总是不断地寻找更好的方法和方式做事。他们有丰富的经验，可以在恰当的情境中选取和应用这些经验。</p>
+<p>根据统计，专家的数量很少，大概占总人数的 1% - 5%   </p>
+<p><strong>专家根据直觉工作，而不需要理由。</strong></p>
+<p>成就专家需要十年。一旦你成了某领域的专家，在别的领域成为专家就会变得更容易。至少你已经有了现在的获取知识的技能和模型构建的能力。</p>
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <footer class="post-footer">
+      
+
+      
+        
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2015/05/19/i-am-the-most-experienced-team-of-engineers-guidance/" rel="next" title="我是团队中最有经验的工程师之指导">
+                <i class="fa fa-chevron-left"></i> 我是团队中最有经验的工程师之指导
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2015/05/19/how-people-have-potential/" rel="prev" title="孙陶然说，什么样的人有潜力？">
+                孙陶然说，什么样的人有潜力？ <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+      <div id="disqus_thread">
+        <noscript>
+          Please enable JavaScript to view the
+          <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a>
+        </noscript>
+      </div>
+    
+  </div>
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap" >
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <img class="site-author-image" itemprop="image"
+               src="/images/avatar.png"
+               alt="kuang" />
+          <p class="site-author-name" itemprop="name">kuang</p>
+           
+              <p class="site-description motion-element" itemprop="description"></p>
+           
+        </div>
+        <nav class="site-state motion-element">
+
+          
+            <div class="site-state-item site-state-posts">
+              <a href="/archives">
+                <span class="site-state-item-count">27</span>
+                <span class="site-state-item-name">日志</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-categories">
+              <a href="/categories/index.html">
+                <span class="site-state-item-count">1</span>
+                <span class="site-state-item-name">分类</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-tags">
+              <a href="/tags/index.html">
+                <span class="site-state-item-count">1</span>
+                <span class="site-state-item-name">标签</span>
+              </a>
+            </div>
+          
+
+        </nav>
+
+        
+
+        <div class="links-of-author motion-element">
+          
+        </div>
+
+        
+        
+
+        
+        
+
+        
+
+
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#阶段1：新手"><span class="nav-number">1.</span> <span class="nav-text">阶段1：新手</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#阶段2：高级新手"><span class="nav-number">2.</span> <span class="nav-text">阶段2：高级新手</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#阶段3：胜任者"><span class="nav-number">3.</span> <span class="nav-text">阶段3：胜任者</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#阶段4：精通"><span class="nav-number">4.</span> <span class="nav-text">阶段4：精通</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#阶段5：专家"><span class="nav-number">5.</span> <span class="nav-text">阶段5：专家</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright" >
+  
+  &copy; 
+  <span itemprop="copyrightYear">2017</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">kuang</span>
+</div>
+
+
+<div class="powered-by">
+  由 <a class="theme-link" href="https://hexo.io">Hexo</a> 强力驱动
+</div>
+
+<div class="theme-info">
+  主题 -
+  <a class="theme-link" href="https://github.com/iissnan/hexo-theme-next">
+    NexT.Pisces
+  </a>
+</div>
+
+
+        
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+  <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.0"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.0"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.0"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.0"></script>
+
+
+
+  
+
+
+  
+
+    
+      <script id="dsq-count-scr" src="https://kuangio.disqus.com/count.js" async></script>
+    
+
+    
+      <script type="text/javascript">
+        var disqus_config = function () {
+          this.page.url = 'http://kuang.io/2015/05/19/from-novice-to-expert-dreyfus/';
+          this.page.identifier = '2015/05/19/from-novice-to-expert-dreyfus/';
+          this.page.title = '从新手到专家的历程——德雷福斯模型';
+        };
+        var d = document, s = d.createElement('script');
+        s.src = 'https://kuangio.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', '' + +new Date());
+        (d.head || d.body).appendChild(s);
+      </script>
+    
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
