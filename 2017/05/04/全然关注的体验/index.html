@@ -69,7 +69,7 @@
 <link href="/css/main.css?v=5.1.0" rel="stylesheet" type="text/css" />
 
 
-  <meta name="keywords" content="闷骚乔巴的博客" />
+  <meta name="keywords" content="随感," />
 
 
 
@@ -85,17 +85,19 @@
 
 
 
-<meta name="description" content="观察者模式在javascript客户端编程中到处可见其踪影，非常重要的一种设计思想。特别我最近在接触angularjs后，更体会其中妙处。">
-<meta name="keywords">
+<meta name="description" content="– DayOne 记于 2016.09.09 今天看克里希了穆提的《生活即是行动》学习到“全然的关注”这种感觉。也正是目前感觉自己缺失的，生活变得日益紧张，日益依赖外部的状况，而非自己的投入其中和缺失热情。以前日常的微笑，慢慢变成眉头紧锁。做事方法方式，也显得混乱，行动也是四分五裂，充满矛盾。所处，处处是瓶颈，处处无法突破，被禁锢其中。 昨天下班时，工作方面的原因心情挺不好的，很烦燥，又无助，而">
+<meta name="keywords" content="随感">
 <meta property="og:type" content="article">
-<meta property="og:title" content="javascript观察者模式">
-<meta property="og:url" content="http://kuang.io/2015/05/19/javascript-observer-design-pattern/index.html">
+<meta property="og:title" content="全然关注的体验">
+<meta property="og:url" content="http://kuang.io/2017/05/04/全然关注的体验/index.html">
 <meta property="og:site_name" content="闷骚乔巴">
-<meta property="og:description" content="观察者模式在javascript客户端编程中到处可见其踪影，非常重要的一种设计思想。特别我最近在接触angularjs后，更体会其中妙处。">
-<meta property="og:updated_time" content="2015-05-19T03:22:42.000Z">
+<meta property="og:description" content="– DayOne 记于 2016.09.09 今天看克里希了穆提的《生活即是行动》学习到“全然的关注”这种感觉。也正是目前感觉自己缺失的，生活变得日益紧张，日益依赖外部的状况，而非自己的投入其中和缺失热情。以前日常的微笑，慢慢变成眉头紧锁。做事方法方式，也显得混乱，行动也是四分五裂，充满矛盾。所处，处处是瓶颈，处处无法突破，被禁锢其中。 昨天下班时，工作方面的原因心情挺不好的，很烦燥，又无助，而">
+<meta property="og:image" content="http://kuang.io/images/posts/20170504-start.jpeg">
+<meta property="og:updated_time" content="2017-05-04T06:06:17.000Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="javascript观察者模式">
-<meta name="twitter:description" content="观察者模式在javascript客户端编程中到处可见其踪影，非常重要的一种设计思想。特别我最近在接触angularjs后，更体会其中妙处。">
+<meta name="twitter:title" content="全然关注的体验">
+<meta name="twitter:description" content="– DayOne 记于 2016.09.09 今天看克里希了穆提的《生活即是行动》学习到“全然的关注”这种感觉。也正是目前感觉自己缺失的，生活变得日益紧张，日益依赖外部的状况，而非自己的投入其中和缺失热情。以前日常的微笑，慢慢变成眉头紧锁。做事方法方式，也显得混乱，行动也是四分五裂，充满矛盾。所处，处处是瓶颈，处处无法突破，被禁锢其中。 昨天下班时，工作方面的原因心情挺不好的，很烦燥，又无助，而">
+<meta name="twitter:image" content="http://kuang.io/images/posts/20170504-start.jpeg">
 
 
 
@@ -123,13 +125,13 @@
 
 
 
-  <link rel="canonical" href="http://kuang.io/2015/05/19/javascript-observer-design-pattern/"/>
+  <link rel="canonical" href="http://kuang.io/2017/05/04/全然关注的体验/"/>
 
 
 
 
 
-  <title> javascript观察者模式 | 闷骚乔巴 </title>
+  <title> 全然关注的体验 | 闷骚乔巴 </title>
 </head>
 
 <body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
@@ -268,7 +270,7 @@
   
 
   <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
-    <link itemprop="mainEntityOfPage" href="http://kuang.io/2015/05/19/javascript-observer-design-pattern/">
+    <link itemprop="mainEntityOfPage" href="http://kuang.io/2017/05/04/全然关注的体验/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="kuang">
@@ -289,7 +291,7 @@
             
             
               
-                javascript观察者模式
+                全然关注的体验
               
             
           </h2>
@@ -304,8 +306,8 @@
               
                 <span class="post-meta-item-text">发表于</span>
               
-              <time title="创建于" itemprop="dateCreated datePublished" datetime="2015-05-19T11:22:42+08:00">
-                2015-05-19
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2017-05-04T14:02:19+08:00">
+                2017-05-04
               </time>
             
 
@@ -315,28 +317,6 @@
           </span>
 
           
-            <span class="post-category" >
-            
-              <span class="post-meta-divider">|</span>
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-folder-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">分类于</span>
-              
-              
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/blog/" itemprop="url" rel="index">
-                    <span itemprop="name">blog</span>
-                  </a>
-                </span>
-
-                
-                
-              
-            </span>
-          
 
           
             
@@ -345,9 +325,9 @@
                 <span class="post-meta-item-icon">
                   <i class="fa fa-comment-o"></i>
                 </span>
-                <a href="/2015/05/19/javascript-observer-design-pattern/#comments" itemprop="discussionUrl">
+                <a href="/2017/05/04/全然关注的体验/#comments" itemprop="discussionUrl">
                   <span class="post-comments-count disqus-comment-count"
-                        data-disqus-identifier="2015/05/19/javascript-observer-design-pattern/" itemprop="commentCount"></span>
+                        data-disqus-identifier="2017/05/04/全然关注的体验/" itemprop="commentCount"></span>
                 </a>
               </span>
             
@@ -361,10 +341,6 @@
           
 
           
-              <div class="post-description">
-                  观察者模式在javascript客户端编程中到处可见其踪影，非常重要的一种设计思想。特别我最近在接触angularjs后，更体会其中妙处。
-              </div>
-          
 
         </div>
       </header>
@@ -377,23 +353,36 @@
       
 
       
-        <p>观察者模式在javascript客户端编程中到处可见其踪影，非常重要的一种设计思想。特别我最近在接触angularjs后，更体会其中妙处。</p>
-<p>搜索一下javascript观察者模式，经典的文章可谓不少。但还是想自己去整理一下思路，更为深刻去理解是原由。</p>
-<p>在工作中，有时会更加重视实践价值，而忽视原理性知识，但当我们了解原理后，更能预测其结果和了解其本意，应用场景。</p>
-<p>###介绍<br>在事件驱动的环境中，观察者模式（又名发布订阅模式（Publish - Subscribe）是一种管理人与其任务之间的关系（确切地讲，是对象及其行为和状态之间的关系）的得力工具。</p>
-<p>它定义了一种一对多的关系，让多个观察者对象同时监听某一个主题对象，这个主题对象的状态发生变化时就会通知所有的观察者对象，使得它们能够自动更新自己。</p>
-<p>###好处<br>将一个系统分割成一系列相互协作的类，但有一个常见的副作用：需要维护相关对象间的一致性。我们不希望为了维持一致性而使各类紧密耦合，因为这样降低了它们的可重用性。  </p>
-<ol>
-<li>支持简单的广播通信，自动通知所有已经订阅过的对象  </li>
-<li>页面载入后目标对象很容易与观察者存在一种动态关联，增加了灵活性  </li>
-<li>目标对象与观察者之间的抽象耦合关系能够单独扩展以及重用  </li>
-</ol>
-<p>###实践<br>先直接上代码（将代码先读懂），<a href="http://jsfiddle.net/chopperkuang/44QLw/2/" target="_blank" rel="external">源代码链接</a>。</p>
-<iframe width="100%" height="500" src="http://jsfiddle.net/chopperkuang/44QLw/2/embedded/" frameborder="0"> </iframe><br>以上代码描述一个博客发布的场景。当博客作者发布新文章者时，订阅者都可以看到该文章，也可以进行相应的操作（比如胡扯一句）。<br><br>本例中的发布者是blogger实例（从observer扩展而来），拥有publish行为，通知所有订阅者。并且可以通过addSubscriber/removeSubscriber添加和删除订阅者。<br>在这，订阅者只是普通的回调函数，负责各自的行为动作。<br><br>###适用性<br>####事件监听器也是观察者<br>在DOM脚本脚本编程中，事件监听说到底就是一种内置的观察者，但事件处理器（handler）与事件监听器（listener）并不是一回事。前者说穿了就是把一种事件传给与其关联的函数的手段。而且这种模型中一种事件只能指定一个回调方法。而在监听器中，一个事件可以与几个监听器关联，每个监听器都能独立于其他监听器而改变。<br>例如，使用事件监听器，可以让多个函数响应同一个事件：<br>//example using listeners<br>var element = $(‘example’);<br>var fn1 = function(){<br>    //handle click<br>}<br>var fn2 = function(){<br>    //do other stuff with click<br>}<br>addEvent(element, ‘click’, fn1);<br>addEvent(element, ‘click’, fn2);<br>但用事件处理器就办不到：<br>//example using handlers<br>var element = document.getElementById(‘id’);<br>var fn1 = function(){<br>    //handle click<br>}<br>var fn2 = function(){<br>    //do other stuff with click<br>}<br>element.onclick = fn1;<br>element.onclick = fn2;<br>可见，监听器和观察者之间的共同之处显而易见。实际上互为同义语，它们都订阅特定的事件，然后等待事件的发生。事件发生后，订阅方的回调函数被执行。<br>####适用场合<br>。当一个抽象模型有两个方面，其中一个方面依赖于另一方面。将这二者封装在独立的对象中以使它们可以各自独立改变和复用<br>。当对一个对象的改变需要同时改变其它对象，而不知道具体有多少对象有待改变<br>。当一个对象必须通知其它对象，而它不能假定其它对象是谁。换言这，你不希望这些对象紧密耦合的。<br><br>就拿上一篇文章中的案例(<a href="http://kkuang.net/awesome-angularJS-features/" target="_blank" rel="external">angularjs五个最棒的特点</a>)的例子。采用angularjs的$watch方法，就可以注册成某个属性或对象的监听者，一旦该对象发生变化，就会被通知到。而且可以在不同的模块中注册，案例中分别在Controller和Directive中都有注册，当菜单的总量变化时，能被立马执行。程序体也非常解耦，无需主动去调用某个对象通知其更新。<br><iframe width="100%" height="400" src="http://jsfiddle.net/chopperkuang/qa3pQ/1/embedded/" frameborder="0"> </iframe>
-
-<p>再前段时间在做的一个税费计算器项目，有很多的输入条件（面积，购入金额，区域等等）并且不同的输入控件（下拉单、输入框、单选等等）。传统的基于事件处理器的方式是，在不同的控件上注册对应的事件，例如，onchange, onclick等等，触发页面更新或重新计算税费的动作。<br>那么，对页面的更新和计算逻辑会混淆在一起。但如果以监听的方式，我们将各种输入组件成一个filter对象，然后用$watch监听该对象的变化。只要其中一个输入值发生变化，立马主动重新计算税费，也触发另外一个监听UI的变更对应的UI效果。   </p>
-<p>angularjs内部提供各种事件供监听，例如：$routeChangeStart(路由变更开始事件)，这个事件就非常有用，我可以将先前在每个Controller中的判断用户是否登录的逻辑抽离到该事件中进行统一判断（因为Controller对应一个路由）<br>在后续，我会更详细介绍angularjs中观察者模式的应用，真的太酷了。</p>
-<p>###小结<br>观察者模式是对应用系统进行抽象的非常有力的手段。可以定义一些事件供客户端使用，而不需要为此深入了解他们的代码。现在的WEB应用程序越来越大，在此背景下，作为一种提高代码的可维护性和简洁性的有力手段，可观察对象的作用更显突出。这种模式的应用有助力防止第三方开发人员因为对你的应用程序了解细节太多而把事情搞糟。    </p>
+        <p><img src="/images/posts/20170504-start.jpeg" alt="image"></p>
+<p>– DayOne 记于 2016.09.09</p>
+<p>今天看克里希了穆提的《生活即是行动》学习到“全然的关注”这种感觉。也正是目前感觉自己缺失的，生活变得日益紧张，日益依赖外部的状况，而非自己的投入其中和缺失热情。以前日常的微笑，慢慢变成眉头紧锁。做事方法方式，也显得混乱，行动也是四分五裂，充满矛盾。所处，处处是瓶颈，处处无法突破，被禁锢其中。</p>
+<p>昨天下班时，工作方面的原因心情挺不好的，很烦燥，又无助，而又生活压力较大。回家时，心情也是这样。估计家人也看到我这状态，心情也不太好。</p>
+<p>而后因手机拉在车上，于是带小孩一起下去拿。顺便跟着小孩到小区外空旷的草坪上溜溜。</p>
+<p>这时已经9点多了，草坪上人也少了，草上也沾了不少露水，湿湿的。穿着短袖，秋风吹得有点凉，也随之倒精神了一下。</p>
+<p>当小孩踏入草坪那一刻，尖叫声夹杂着欢笑声，非常清晰明亮，还有小孩特有的单纯的儿声。小家伙在欢快的在跑动着。那娇小的身体，稍远点就只能看清小胳膊小腿的在有节奏的小幅快速晃动，都无法感知到跑动的速度，只觉得是眼睛里的一个个画像在不断的闪动而已。</p>
+<p>恰巧，正因为较晚了，内心没有怕小孩跑丢的恐惧；另外，脑较累，无心再去思考些其他的，都丢一旁吧。</p>
+<p>就这么简单的，全然投入。整个身体、感官、双眼、双耳——一切。灰暗的夜里，湿湿空旷草坪上，小孩欢乐奔跑，秋风凉凉，汽车的嘈杂也遮挡不住小孩的笑声。没有时间的存在，每一刻都是幅不同的美景而已。</p>
+<hr>
+<p>就像书中提到，我们已然被训练得心不在焉，以至于我们总是试图从关注逃离到心不在焉。找到这种全然的关注不易，是种巨大的挑战。</p>
+<p>“我很懒散”，“我心很累”，“我还有其他事情要做”，<br>那么就会全然的关注懒散，心累，其他事情上。</p>
+<p>当我们吃东西时，就吃。当我们散步时，就散步，不要对自己说“我还有其他事情想想或做做”。当我们看书时，就全身心地看，无论这是本侦探小说、还是本杂志或者你喜欢的书。全然地关注就是种完整的行动。重点不是我们在做什么，而是我们是否能对此投以全身心的关注。</p>
+<p><strong>全然的关注也是种倾听。</strong></p>
+<p>倾听本身就是一种谦卑的行动，是门艺术。去倾听意味着，你不仅仅对讲话者所说的投以全身心的关注，也对那群乌鸦，以及落日、云朵、拂过树叶的微风，和这里的各种色彩投以全身心的关注。</p>
+<p>就如陪小孩的情景，我能感觉到身边的一切，而并非只是以前感受到的小孩跑东跑西，得一直追上去盯着，身边还充斥嘈杂的汽车声，好烦好烦，越想越烦越累，就把小孩抱回家。</p>
+<p><strong>全然的倾听会放弃所有的观念。</strong></p>
+<p>只有倾听才会了解，这不是指只是理解了某个句子。是意味着这句话的所有内容有所了解，并且全然领会这句话的涵义，就好比这句话完全适用于我们自己身上一样。</p>
+<p>如果头脑会倾听，这份倾听就能带来高品质的头脑，由此就会产生行动。然而，如果没有高品质的头脑，没有这种奇特的、具创造性的爆发品质，而只是一味追求行动，那么就会招致琐碎而肤浅的头脑和心灵。</p>
+<p>我们受模仿、受制于传统、不具深广的洞察能力，我们的视野都被立即的应对的行动及其产物所遮蔽。我们大多数人都专注于于“怎么做”。</p>
+<p>我已回想不起太多“全然的投入”，以前看开源项目源码时会有，当理解作者精巧的实现时，会心一笑，甚至拍案叫绝。嫣然感觉作者就在身边，并对他竖大拇指或者报以微笑称赞。</p>
+<blockquote>
+<p>克里希了穆提说到：</p>
+<p>“全然的关注”才会有“全然的行动”。专注和关注是不一样的。专注是排他的过程，在我们专注于一个目标的那刻，这个目标就变得远比关注本身重要得多，就如同小孩被玩具吸引一样。</p>
+</blockquote>
+<p>如果我专注于开车，那么路边飘过的景象，空气中不同的味道，全然麻木，随他而去。我会盯紧前方车辆，盯紧红绿灯，以防万一。</p>
+<p>当存有动机时，其中就不存在关注。只有当不持任何动机，没有目标，没有任何形式的强制时，才会关注 。</p>
+<p>这显得多么的不现实。何时会能做到全然的关注？<br>只有当爱存在时。当爱存在时，就会有全然的关注。无需任何动机<br>对象，无需丝毫强制，你只要爱就可以。</p>
+<p><strong>爱不是多愁善感，不是情感主义，受也不是奉献。</strong><br><strong>它是种存在的状态：清晰、健全、理性、纯净，由此就可以产生全然的行动。</strong></p>
+<p>所以在陪家人或者溜小孩时，很容易找到这种状态，因为充满爱。</p>
 
       
     </div>
@@ -421,6 +410,12 @@
 
     <footer class="post-footer">
       
+        <div class="post-tags">
+          
+            <a href="/tags/随感/" rel="tag"># 随感</a>
+          
+        </div>
+      
 
       
         
@@ -430,18 +425,14 @@
         <div class="post-nav">
           <div class="post-nav-next post-nav-item">
             
-              <a href="/2015/05/19/case-case-case/" rel="next" title="案例，案例，案例">
-                <i class="fa fa-chevron-left"></i> 案例，案例，案例
-              </a>
-            
           </div>
 
           <span class="post-nav-divider"></span>
 
           <div class="post-nav-prev post-nav-item">
             
-              <a href="/2015/01/09/why-db-migration-tools-flyway/" rel="prev" title="使用flyway对应用的数据库版本控制">
-                使用flyway对应用的数据库版本控制 <i class="fa fa-chevron-right"></i>
+              <a href="/2017/05/02/探索找到真正问题的方法/" rel="prev" title="探索找到真正问题的方法">
+                探索找到真正问题的方法 <i class="fa fa-chevron-right"></i>
               </a>
             
           </div>
@@ -699,9 +690,9 @@
     
       <script type="text/javascript">
         var disqus_config = function () {
-          this.page.url = 'http://kuang.io/2015/05/19/javascript-observer-design-pattern/';
-          this.page.identifier = '2015/05/19/javascript-observer-design-pattern/';
-          this.page.title = 'javascript观察者模式';
+          this.page.url = 'http://kuang.io/2017/05/04/全然关注的体验/';
+          this.page.identifier = '2017/05/04/全然关注的体验/';
+          this.page.title = '全然关注的体验';
         };
         var d = document, s = d.createElement('script');
         s.src = 'https://kuangio.disqus.com/embed.js';
